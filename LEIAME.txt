@@ -1,29 +1,37 @@
 ================================================================================
-              GEIO DISKRADAR v2.1.0 - PACOTE WINDOWS
+              GEIO DISKRADAR v2.2.0 - PACOTE WINDOWS
 ================================================================================
 
 Este pacote contem o codigo completo e os inicializadores prontos para o Windows
-do Geio DiskRadar v2.1.0, ferramenta forense de leitura 100% segura (Read-Only)
-para identificacao de carteiras de criptomoedas, sementes BIP-39 e saude SMART.
+do Geio DiskRadar v2.2.0, ferramenta forense de leitura 100% segura (Read-Only)
+para identificacao de carteiras de criptomoedas, sementes BIP-39, pastas quentes
+de midia/documentos e saude fisica S.M.A.R.T.
 
 --------------------------------------------------------------------------------
-NOVIDADES DA VERSAO 2.1.0:
+NOVIDADES DA VERSAO 2.2.0 (STITCH CYBER-FORENSIC PRECISION GUI):
 --------------------------------------------------------------------------------
-- [CORRECAO] "Abrir no Explorer" corrigido: arquivos sao destacados no local
-  exato sem abrir "Meus Documentos", e pastas quentes abrem diretamente.
-- [VISUAL] Novo design de Cards Forenses:
-  * Distincao visual clara de cada achado com bordas e espacamento;
-  * Categorias em badges vibrantes coloridos (Cripto, Senhas, CAD, IRPF, etc.);
-  * Pílulas metricas individuais de contagem, tamanho e data;
-  * Barra de caminho em container escuro dedicado (📍 C:\...).
-- [COMPILACAO] Script 100% linear livre de erros de parser do CMD.
+- [NOVA GUI STITCH COMPLETA] Integracao total das 10 Telas e Modais gerados no
+  Google Stitch sob o Design System "Cyber-Forensic Precision":
+  1. Aba 1: Pastas Quentes (Bento KPIs, filtros Fotos/Videos/Docs, Score Forense)
+  2. Aba 2: Arquivos Criticos ("Agulhas no Palheiro" + 10 categorias + Ver Hex)
+  3. Aba 3: Arvore de Usuarios & Atalhos Rapidos (8 atalhos 1-clique por perfil)
+  4. Aba 4: Linha do Tempo & Atividade (Histograma anual + Matriz Analitica)
+  5. Aba 5: Log de Erros & Bad Blocks (Telemetria I/O + Filtro ACL + Dump .TXT)
+  6. Aba 6: Monitor de Varredura ao Vivo (Console de I/O em tempo real)
+  7. Aba 7: Resumo Executivo Pos-Varredura (Hash SHA-256 da sessao + Top achados)
+  8. Modal 8: Diagnostico S.M.A.R.T. Detalhado (Score 0-100% + Tabela ATA/NVMe)
+  9. Modal 9: Exportacao de Relatorio HTML (Preview interativo + Salvar Como)
+  10. Modal 10: Inspetor Hexadecimal Read-Only (Setor 512B, Entropia de Shannon,
+      Assinatura Magic Number e Data Inspector uint8/uint16/uint32)
+- [MODO HIBRIDO] Abre em janela dedicada nativa (--app mode via Edge/Chrome) e
+  inclui tambem a interface CustomTkinter classica (`python main.py --classic`).
 
 --------------------------------------------------------------------------------
 COMO UTILIZAR NO WINDOWS:
 --------------------------------------------------------------------------------
 
 ATENCAO: Antes de executar qualquer script, CERTIFIQUE-SE DE EXTRAIR O ARQUIVO .ZIP!
-(Clique com o botao direito em Geio-DiskRadar-Windows-v2.1.0.zip -> "Extrair Tudo...")
+(Clique com o botao direito em Geio-DiskRadar-Windows-v2.2.0.zip -> "Extrair Tudo...")
 
 OPCAO 1: GERAR O EXECUTAVEL VERSIONADO (.EXE)
   1. Dê dois cliques em:
@@ -31,8 +39,8 @@ OPCAO 1: GERAR O EXECUTAVEL VERSIONADO (.EXE)
   2. O script detecta automaticamente o Python 3.14 (ou outra versao instalada),
      instala as dependencias e compila o binario final.
   3. O executavel final versionado sera gerado como:
-       dist\DiskRadar-v2.1.0.exe
-       DiskRadar-v2.1.0.exe (copia na raiz)
+       dist\DiskRadar-v2.2.0.exe
+       DiskRadar-v2.2.0.exe (copia na raiz)
        DiskRadar.exe        (copia de conveniencia)
   4. Caso ocorra qualquer falha, o log completo e gravado em:
        compilacao.log
@@ -40,7 +48,7 @@ OPCAO 1: GERAR O EXECUTAVEL VERSIONADO (.EXE)
 OPCAO 2: EXECUTAR DIRETO (SEM PRECISAR COMPILAR)
   1. Dê dois cliques em:
        Executar_DiskRadar.bat
-  2. A interface gráfica do Geio DiskRadar v2.1.0 abre imediatamente.
+  2. A interface gráfica do Geio DiskRadar v2.2.0 abre imediatamente.
   3. Log de execucao registrado em:
        execucao.log
 
@@ -48,7 +56,7 @@ OPCAO 2: EXECUTAR DIRETO (SEM PRECISAR COMPILAR)
 REQUISITOS NO WINDOWS:
 --------------------------------------------------------------------------------
 - Python 3.10, 3.11, 3.12, 3.13 ou 3.14 instalado.
-- Conexao com a internet na primeira execucao (para baixar customtkinter e pyinstaller).
+- Conexao com a internet na primeira execucao (para baixar dependencias).
 
 --------------------------------------------------------------------------------
 GARANTIA DE SEGURANCA:

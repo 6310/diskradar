@@ -50,11 +50,12 @@ class DiskRadarApp(ctk.CTk):
     def __init__(self) -> None:
         super().__init__()
 
-        self.title("Geio DiskRadar v2.1.0 — Triador e Indexador Read-Only de HDs e SSDs de Sucata")
+        self.title("Geio DiskRadar v2.2.0 — Triador e Indexador Read-Only de HDs e SSDs de Sucata")
         self.geometry("1340x880")
         self.minsize(1060, 720)
 
         # Estado da aplicação
+        self._stitch_url: Optional[str] = None
         self.event_queue: queue.Queue = queue.Queue()
         self.scanner: Optional[AsyncDiskScanner] = None
         self.drives_map: Dict[str, str] = {}  # label -> path
@@ -145,9 +146,9 @@ class DiskRadarApp(ctk.CTk):
 
         lbl_sub = ctk.CTkLabel(
             brand_frame,
-            text="v2.1.0 • Triagem Forense Read-Only",
+            text="v2.2.0 • Cyber-Forensic Precision",
             font=ctk.CTkFont(size=11, weight="bold"),
-            text_color="#94a3b8",
+            text_color="#00f0ff",
         )
         lbl_sub.grid(row=1, column=0, sticky="w")
 
@@ -194,6 +195,18 @@ class DiskRadarApp(ctk.CTk):
             command=self._choose_custom_folder,
         )
         self.btn_custom_dir.grid(row=0, column=3, padx=6, pady=2)
+
+        self.btn_open_stitch = ctk.CTkButton(
+            controls_frame,
+            text="⚡ Interface Stitch (10 Telas)",
+            width=195,
+            height=28,
+            fg_color="#0891b2",
+            hover_color="#06b6d4",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            command=self._open_stitch_gui,
+        )
+        self.btn_open_stitch.grid(row=0, column=4, padx=6, pady=2)
 
         # Bloco da Direita: Ações Primárias (Iniciar, Parar, Exportar HTML)
         actions_frame = ctk.CTkFrame(top_frame, fg_color="transparent")
@@ -657,6 +670,19 @@ class DiskRadarApp(ctk.CTk):
                 self.drive_option_menu.configure(values=current_vals)
             self.drive_option_menu.set(custom_label)
             self._select_target_path(folder)
+
+    def _open_stitch_gui(self) -> None:
+        """Inicia o servidor Stitch local (caso ainda não ativo) e abre a interface de 10 telas."""
+        try:
+            import webbrowser
+            from ui.stitch_server import start_stitch_background_server
+
+            if not self._stitch_url:
+                url, _ctrl, _srv = start_stitch_background_server()
+                self._stitch_url = url
+            webbrowser.open(self._stitch_url)
+        except Exception as exc:
+            messagebox.showerror("Erro ao abrir Interface Stitch", str(exc))
 
     def _select_target_path(self, target_path: str) -> None:
         """Atualiza imediatamente a interface e dispara consulta física em background."""

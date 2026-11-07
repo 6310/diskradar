@@ -5,7 +5,7 @@ cd /d "%~dp0"
 if "%~1"=="--internal-run" goto :INTERNAL_RUN
 
 echo ============================================================================
-echo   GEIO DISKRADAR v2.1.0 - INICIANDO EXECUCAO DIRETA
+echo   GEIO DISKRADAR v2.2.0 - INICIANDO EXECUCAO DIRETA
 echo ============================================================================
 echo.
 cmd.exe /c ""%~f0" --internal-run" > "%~dp0execucao.log" 2>&1
@@ -70,7 +70,7 @@ echo.
 echo Instalando/verificando dependencias...
 %PY_BIN% -m pip install -r requirements.txt --quiet
 
-echo Abrindo interface grafica do Geio DiskRadar v2.1.0...
+echo Abrindo interface grafica do Geio DiskRadar v2.2.0...
 start "" "%PY_BIN%" main.py
 echo [OK] Processo disparado com sucesso.
 exit /b 0

@@ -79,6 +79,38 @@ class AsyncDiskScanner:
         self._stop_event = threading.Event()
         self._thread: Optional[threading.Thread] = None
         self.is_running: bool = False
+        self._live_classifier: Optional[DiskClassifier] = None
+        self._live_errors: List[ScanErrorEntry] = []
+        self._live_files: int = 0
+        self._live_dirs: int = 0
+        self._live_current_dir: str = ""
+        self._live_start_time: float = 0.0
+
+    def get_live_snapshot(self) -> Optional[ScanResult]:
+        """Retorna um snapshot seguro do estado parcial da varredura em andamento."""
+        clf = self._live_classifier
+        if clf is None:
+            return None
+        elapsed = (time.monotonic() - self._live_start_time) if self._live_start_time > 0 else 0.0
+        timeline_stats = clf.get_timeline_stats()
+        _s, _e, peak_stats, timeline_summary = clf.get_timeline_summary()
+        return ScanResult(
+            root_path=self.target_path,
+            was_cancelled=self._stop_event.is_set(),
+            elapsed_seconds=elapsed,
+            scanned_files=self._live_files,
+            scanned_dirs=self._live_dirs,
+            total_photos=clf.total_Photos,
+            total_videos=clf.total_Videos,
+            total_docs=clf.total_Docs,
+            hot_folders=clf.get_sorted_hot_folders()[:200],
+            critical_items=clf.get_all_critical_items()[:200],
+            catalog_entries=[],
+            errors=list(self._live_errors[-100:]),
+            timeline_stats=timeline_stats,
+            peak_year=peak_stats.year if peak_stats else None,
+            timeline_summary=timeline_summary,
+        )
 
     def start(self) -> None:
         """Inicia a varredura em background."""
@@ -95,8 +127,13 @@ class AsyncDiskScanner:
 
     def _run_scan(self) -> None:
         start_time = time.monotonic()
+        self._live_start_time = start_time
         classifier = DiskClassifier(self.target_path)
         errors: List[ScanErrorEntry] = []
+        self._live_classifier = classifier
+        self._live_errors = errors
+        self._live_files = 0
+        self._live_dirs = 0
 
         scanned_files = 0
         scanned_dirs = 0
@@ -138,11 +175,13 @@ class AsyncDiskScanner:
         while dir_stack and not self._stop_event.is_set():
             current_dir = dir_stack.pop()
             scanned_dirs += 1
+            self._live_dirs = scanned_dirs
 
             now = time.monotonic()
             if now - last_ui_update >= 0.18:
                 last_ui_update = now
                 display_dir = strip_extended_prefix(current_dir)
+                self._live_current_dir = display_dir
                 self.event_queue.put({
                     "type": "SCAN_PROGRESS",
                     "current_dir": display_dir,
@@ -189,6 +228,7 @@ class AsyncDiskScanner:
                             dir_stack.append(entry.path)
                         elif entry.is_file(follow_symlinks=False):
                             scanned_files += 1
+                            self._live_files = scanned_files
                             st = entry.stat(follow_symlinks=False)
 
                             clean_file_path = strip_extended_prefix(entry.path)

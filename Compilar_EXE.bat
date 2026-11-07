@@ -6,7 +6,7 @@ REM Se nao estiver em modo interno, reinicia gravando tudo em compilacao.log
 if "%~1"=="--internal-run" goto :INTERNAL_RUN
 
 echo ============================================================================
-echo   GEIO DISKRADAR v2.1.0 - INICIANDO COMPILADOR PyInstaller COM LOG
+echo   GEIO DISKRADAR v2.2.0 - INICIANDO COMPILADOR PyInstaller COM LOG
 echo ============================================================================
 echo.
 echo Gravando log em tempo real no arquivo: compilacao.log
@@ -33,7 +33,7 @@ exit /b %errorlevel%
 
 
 :INTERNAL_RUN
-set "VERSION=2.1.0"
+set "VERSION=2.2.0"
 set "EXE_NAME=DiskRadar-v%VERSION%.exe"
 
 echo ============================================================================

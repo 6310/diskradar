@@ -1,49 +1,28 @@
-# 📡 Geio DiskRadar (v2.1+) — Triador e Indexador Read-Only de HDs e SSDs
+# 📡 Geio DiskRadar (v2.2.0) — Triador e Indexador Read-Only de HDs e SSDs
 
 Software Desktop em Python 3.11+ para triagem ultra-rápida, forense e **100% Read-Only (somente leitura)** de HDs e SSDs conectados via Dock USB/SATA. Projetado para operadores de bancada, recuperadores de ativos e técnicos que precisam avaliar lotes de discos descartados ou sucata.
 
-O **DiskRadar** lê metadados do sistema de arquivos (`os.scandir` / `stat`) sem nunca alterar, criar, mover ou deletar dados na unidade, preservando discos com falhas físicas e *Bad Blocks*.
+O **DiskRadar v2.2.0** traz a nova interface gráfica **Stitch "Cyber-Forensic Precision"** (10 telas e modais unificados) acoplada ao motor Python Read-Only (`core/`), lendo metadados e blocos iniciais (`os.scandir` / `stat` / `rb`) sem nunca alterar, criar, mover ou deletar dados na unidade analisada.
 
 ---
 
-## ✨ Principais Funcionalidades
+## ✨ Principais Funcionalidades (v2.2.0)
 
-1. **Seletor de Unidade e "Crachá do Disco" (Telemetria S.M.A.R.T. & Hardware):**
-   - Detecta Modelo Físico, Número de Série (`S/N`), Tipo de Mídia (`HDD`/`SSD`/`NVMe`), Rotação (`RPM`), Temperatura e Saúde S.M.A.R.T. no Windows via PowerShell nativo (`Get-Partition`, `Get-Disk`, `Get-PhysicalDisk` e `MSStorageDriver_ATAPISmartData` com `ConvertTo-Json` e `CREATE_NO_WINDOW`, sem depender de drivers externos).
-   - **Horas de Uso (Power-On Hours):** Informa exatamente quantas horas o disco já operou ligado (ex: `14.280h (~595 dias)` e contagem de ciclos de ligamento), essencial para precificar lotes de sucata.
-   - Possui fallback no Linux para desenvolvimento e testes em bancada/VM.
-   - Identifica automaticamente os perfis de usuários no disco (`Users` / `Documents and Settings`) e estima a data do último uso com base em arquivos recentes.
-   - Alerta visual imediato caso haja risco físico, setores realocados ou pendentes.
+1. **Estação Forense Stitch "Cyber-Forensic Precision" (10 Telas & Modais):**
+   - **Tela 1 — Pastas Quentes (`pastas-quentes`):** 4 cartões Bento KPI, filtros por tipo (`TODAS`, `FOTOS`, `VÍDEOS`, `DOCS`, `MISTO`), ordenação por Score Forense (`0-100 pts`), Volume, Arquivos ou Recência, e botões `Copiar` e `Explorar` (`explorer.exe`).
+   - **Tela 2 — Arquivos Críticos (`arquivos-criticos`):** Filtros instantâneos pelas 10 categorias forenses, busca com debounce, e botões `Ver Hex` (abre o Inspetor Hexadecimal no arquivo), `Copiar` e `Abrir no Explorer` (`explorer.exe /select,"..."`).
+   - **Tela 3 — Árvore de Usuários & Atalhos Rápidos (`usuarios-atalhos`):** Cartões dinâmicos por perfil de usuário com 8 atalhos 1-clique (`Desktop`, `Documents`, `Downloads`, `Pictures`, `Videos`, `AppData`, `Browsers`, `SSH`) + Diretórios Globais do Sistema.
+   - **Tela 4 — Linha do Tempo & Atividade (`linha-do-tempo`):** Cronogeografia de atividade, Card de Insight Forense (Ano de Pico), gráfico de barras horizontais segmentadas ano a ano e matriz analítica consolidada.
+   - **Tela 5 — Log de Erros & Bad Blocks (`log-erros`):** 4 KPIs de telemetria física (`I/O Read Errors`, `PermissionError / ACL`, `Total de Incidentes`, `Setores Críticos 05/C5`), filtro de ACLs e exportação de dump `.TXT`.
+   - **Tela 6 — Monitor de Varredura ao Vivo (`live-monitor`):** Console de I/O em tempo real (`[KERNEL]`, `[SONDAGEM]`, `[IO_READ]`, `[HOT_FOLDER]`, `[MATCH_CRITICAL]`, `[SECTOR_WARN]`, `[FINISHED]`) e feed instantâneo de achados críticos.
+   - **Tela 7 — Resumo Executivo Pós-Varredura (`resumo-pos-varredura`):** Balanço final da sessão com hash SHA-256 da cadeia de custódia, top achados críticos e top pastas quentes.
+   - **Modal 8 — Diagnóstico S.M.A.R.T. Detalhado (`modal-smart`):** Score Eletromecânico (`0-100%`), 6 micro-cards de telemetria e tabela ATA/NVMe com alternância `RAW HEX` / `DECIMAL`.
+   - **Modal 9 — Exportação de Relatório HTML (`modal-export`):** Configuração e preview interativo do Catálogo de Autópsia `.html` 100% offline com seletor nativo de destino (`Salvar Como...`).
+   - **Modal 10 — Inspetor Hexadecimal Read-Only (`modal-hex`):** Leitura pura (`rb`) de blocos de 512 bytes com navegação de setores (`-512B` / `+512B`), cálculo de Entropia de Shannon (`0.00 - 8.00 bits/byte`), detector de assinatura Magic Number (`SQLite 3`, `Wallet.dat Berkeley DB`, `ZIP/OOXML`, `PDF`, `PST`, `KDBX`, `DWG`, `PSD`, etc.), Data Inspector (`uint8`, `uint16_le`, `uint32_le`) e SHA-256 parcial.
 
 2. **Motor de Varredura Assíncrono Anti-Travamento (`os.scandir`):**
-   - Executa em `threading.Thread` dedicada com comunicação em tempo real via `queue.Queue`.
-   - Ignora imediatamente diretórios de sistema e cache (`Windows`, `Program Files`, `AppData`, `node_modules`, `.git`, etc.) na varredura recursiva cega para economizar tempo.
-   - Realiza sondagem cirúrgica e segura em locais de alto valor sem varrer gigabytes de caches irrelevantes.
-   - Isola erros `OSError`, `PermissionError` e registra possíveis *Bad Blocks* sem travar a interface.
-
-3. **Motor de Classificação Inteligente (`core/rules.py` & `core/classifier.py`):**
-   - **Visão 1 — Pastas Quentes:** Agrupa fotos (`> 50 KB`), vídeos (`> 500 KB`) e documentos comuns por diretório, calculando contadores, volume total e data recente para cópia rápida.
-   - **Visão 2 — Agulhas no Palheiro (Achados Críticos):**
-     - **Cripto, Carteiras & BIP-39:** Detecta `wallet.dat` (Bitcoin Core, Dogecoin, Litecoin), `electrum.dat`, `*.wallet`, `*.seed`, `*.sparrow` (Sparrow Wallet), `*.keys` (Monero), Wasabi Wallet, Daedalus (Cardano), Atomic Wallet, rastros de Trezor Suite e Ledger Live, e extensões Web3 (MetaMask, Phantom, Ronin, TronLink, Coinbase).
-     - **Detector de Sementes BIP-39:** Inspeciona com segurança arquivos de texto leves buscando sequências mnemônicas de 12 a 24 palavras do dicionário oficial de 2048 palavras BIP-39, sem nunca gravar ou expor as palavras em disco.
-     - **Navegadores & Sessões:** Localiza `Login Data` (senhas salvas), `Web Data`, `Bookmarks` e `History` dos principais navegadores (Chrome, Edge, Brave, Opera, Firefox).
-     - **Engenharia / Arquitetura (CAD / 3D):** `.dwg`, `.dxf`, `.rvt`, `.skp`, `.step`, `.stp`, `.iges`, `.stl`, `.sldprt`, `.sldasm`, `.blend`.
-     - **Design / Gráfica:** `.psd`, `.ai`, `.cdr`, `.eps`, `.indd`, `.prproj`, `.aep`.
-     - **E-mails & Mensagens:** `.pst`, `.ost` (Outlook), `msgstore.db*` (WhatsApp), perfis Thunderbird.
-     - **Contábil / IRPF & Lotes Fiscais:** Declarações `.dec`, `.rec`, `.dbk` e agrupamento inteligente de pastas com arquivos `.xml` fiscais.
-     - **Bancos de Dados ERP/PDV:** `.fdb`, `.gdb`, `.mdf`, `.ldf`, `.bak`, `.sql`, `.sqlite`, `.sqlite3`.
-     - **Backups & Imagens:** `.tib` (Acronis), `.vbk` (Veeam), `.gho`, `.iso`, `.vhd`, `.vhdx`, `.vmdk`, `.ova`, `.zip`, `.rar`, `.7z`.
-
-4. **Linha do Tempo Forense & Histograma de Atividade (Aba 4):**
-   - Contabiliza arquivos ano a ano identificando o período exato de uso do HD e destacando o **Ano de Pico de Uso**.
-
-5. **Ponte com Windows Explorer & Área de Transferência:**
-   - Para arquivos: executa `explorer.exe /select,"<caminho>"` destacando o item na pasta original.
-   - Para pastas: abre diretamente o diretório para exploração imediata.
-   - Botões de cópia rápida com feedback tátil (`✔ Copiado!`).
-
-6. **Relatório HTML Autocontido ("Catálogo de Autópsia"):**
-   - Exporta um arquivo `.html` 100% offline com CSS Dark Mode e motor de busca rápida em JavaScript para consultas mesmo após a desconexão ou descarte do disco.
+   - Executa em `threading.Thread` dedicada com comunicação em tempo real via `queue.Queue` e snapshots thread-safe (`get_live_snapshot()`).
+   - Ignora diretórios de sistema e cache (`Windows`, `Program Files`, `AppData`, `node_modules`, `.git`, etc.) na varredura recursiva cega e aplica sondagem cirúrgica (`TARGETED_USER_SUBPATHS`) em locais de alto valor (carteiras cripto, cofres de navegadores, Outlook, WhatsApp, SSH).
 
 ---
 
@@ -51,13 +30,13 @@ O **DiskRadar** lê metadados do sistema de arquivos (`os.scandir` / `stat`) sem
 
 ```text
 diskradar/
-├── main.py                 # Ponto de entrada (DPI Awareness Windows + inicialização da UI)
+├── main.py                 # Ponto de entrada (abre Stitch GUI v2.2.0 ou CustomTkinter com --classic)
 ├── requirements.txt        # Dependências de produção
 ├── .env.example            # Exemplo de variáveis de ambiente opcionais
 ├── .gitignore              # Regras estratégicas de exclusão Git
 ├── run_linux.sh            # Script de inicialização rápida no Linux
 ├── Executar_DiskRadar.bat  # Inicializador direto no Windows (sem precisar compilar)
-├── Compilar_EXE.bat        # Compilador PyInstaller automatizado (.exe standalone)
+├── Compilar_EXE.bat        # Compilador PyInstaller automatizado (gera DiskRadar-v2.2.0.exe)
 ├── LEIAME.txt              # Guia rápido de uso em português para Windows
 ├── README.md               # Esta documentação
 ├── core/                   # Motor Forense Read-Only (100% testado)
@@ -66,16 +45,20 @@ diskradar/
 │   ├── disk_info.py        # Coleta de Hardware, S/N, S.M.A.R.T. e Usuários
 │   ├── explorer_bridge.py  # Integração segura com o Windows Explorer (/select) e xdg-open
 │   ├── exporter.py         # Gerador de relatório HTML offline com busca JS
+│   ├── hex_inspector.py    # Inspetor Hexadecimal Read-Only (512B, Entropia de Shannon, Magic Bytes)
 │   ├── rules.py            # Regras, extensões, blocklists e limites de relevância
-│   └── scanner.py          # Thread assíncrona (AsyncDiskScanner) com fila de eventos
+│   └── scanner.py          # Thread assíncrona (AsyncDiskScanner) com fila de eventos e live snapshot
 ├── tests/                  # Suíte de testes unitários automatizados
 │   ├── test_bip39.py       # Testes do detector de sementes BIP-39
 │   ├── test_classifier.py  # Testes de agrupamento e scores de relevância
 │   ├── test_disk_info.py   # Testes dos resumos de telemetria e crachá do disco
 │   ├── test_explorer_bridge.py # Testes da ponte do gerenciador de arquivos
+│   ├── test_hex_inspector.py   # Testes do inspetor hexadecimal Read-Only e entropia
 │   └── test_rules.py       # Testes de regras de negócio e limites
 └── ui/                     # Camada de Interface Gráfica Desktop
-    └── app.py              # Interface Gráfica CustomTkinter (5 abas + HUD)
+    ├── stitch_server.py    # Servidor local ThreadingHTTPServer + Launcher nativo (--app mode)
+    ├── stitch_template.py  # Template SPA unificado das 10 telas Stitch Cyber-Forensic Precision
+    └── app.py              # Interface Gráfica CustomTkinter clássica (--classic)
 ```
 
 ---
@@ -83,29 +66,25 @@ diskradar/
 ## 🚀 Como Executar
 
 ### No Linux (Desenvolvimento / Bancada):
-Basta rodar o script utilitário incluído:
 ```bash
 ./run_linux.sh
 ```
-Ou manualmente com Python virtualenv:
+Ou manualmente:
 ```bash
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-python3 main.py
+python3 main.py            # Abre a Interface Stitch v2.2.0 (10 Telas)
+python3 main.py --classic  # Abre a Interface CustomTkinter Clássica
 ```
 
 ### No Windows:
 - **Execução direta (sem compilar):** dê dois cliques em `Executar_DiskRadar.bat`.
-- **Gerar o executável único `.exe`:** dê dois cliques em `Compilar_EXE.bat`. O binário standalone será gerado em `dist\DiskRadar-v2.1.0.exe` e copiado automaticamente para a raiz.
+- **Gerar o executável único `.exe`:** dê dois cliques em `Compilar_EXE.bat`. O binário standalone será gerado em `dist\DiskRadar-v2.2.0.exe` e copiado automaticamente para a raiz.
 
 ---
 
 ## 🧪 Suíte de Testes Automatizados
 
-Para executar os testes unitários da suíte `tests/`:
 ```bash
-python3 -m unittest discover -s tests
+python3 -m unittest discover -s tests -v
 ```
 
 ---
@@ -114,4 +93,3 @@ python3 -m unittest discover -s tests
 
 - O Geio DiskRadar opera **EXCLUSIVAMENTE em modo LEITURA (Read-Only)**.
 - O software não contém nenhuma rotina de formatação, particionamento, deleção, sobrescrita ou movimentação de arquivos na unidade analisada.
-- A única operação de escrita existente é a exportação voluntária de relatórios HTML no local escolhido pelo usuário.

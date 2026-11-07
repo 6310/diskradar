@@ -471,12 +471,21 @@ def _detect_users_and_activity(root_path: str) -> tuple[List[UserProfileInfo], O
 
 
 def _find_user_shortcuts(profile_path: str) -> Dict[str, str]:
-    """Localiza pastas clássicas de um perfil de usuário (Desktop, Documents, Pictures, Downloads)."""
+    """Localiza pastas clássicas de um perfil de usuário (Desktop, Documents, Pictures, Downloads, Videos, AppData, Browsers, SSH)."""
     mapping = {
         "Desktop": ["Desktop", "Área de Trabalho", "Area de Trabalho", "OneDrive/Desktop", "OneDrive/Área de Trabalho"],
         "Documents": ["Documents", "Meus Documentos", "Documentos", "OneDrive/Documents", "OneDrive/Documentos"],
         "Pictures": ["Pictures", "Minhas Imagens", "Imagens", "OneDrive/Pictures", "OneDrive/Imagens"],
         "Downloads": ["Downloads", "Transferências"],
+        "Videos": ["Videos", "Meus Vídeos", "Vídeos", "OneDrive/Videos"],
+        "AppData": ["AppData", ".config"],
+        "Browsers": [
+            "AppData/Local/Google/Chrome/User Data",
+            "AppData/Local/Microsoft/Edge/User Data",
+            "AppData/Roaming/Mozilla/Firefox/Profiles",
+            ".config/google-chrome",
+        ],
+        "SSH": [".ssh"],
     }
     found: Dict[str, str] = {}
     for canonical, candidates in mapping.items():
