@@ -1,0 +1,58 @@
+================================================================================
+              GEIO DISKRADAR v2.1.0 - PACOTE WINDOWS
+================================================================================
+
+Este pacote contem o codigo completo e os inicializadores prontos para o Windows
+do Geio DiskRadar v2.1.0, ferramenta forense de leitura 100% segura (Read-Only)
+para identificacao de carteiras de criptomoedas, sementes BIP-39 e saude SMART.
+
+--------------------------------------------------------------------------------
+NOVIDADES DA VERSAO 2.1.0:
+--------------------------------------------------------------------------------
+- [CORRECAO] "Abrir no Explorer" corrigido: arquivos sao destacados no local
+  exato sem abrir "Meus Documentos", e pastas quentes abrem diretamente.
+- [VISUAL] Novo design de Cards Forenses:
+  * Distincao visual clara de cada achado com bordas e espacamento;
+  * Categorias em badges vibrantes coloridos (Cripto, Senhas, CAD, IRPF, etc.);
+  * Pílulas metricas individuais de contagem, tamanho e data;
+  * Barra de caminho em container escuro dedicado (📍 C:\...).
+- [COMPILACAO] Script 100% linear livre de erros de parser do CMD.
+
+--------------------------------------------------------------------------------
+COMO UTILIZAR NO WINDOWS:
+--------------------------------------------------------------------------------
+
+ATENCAO: Antes de executar qualquer script, CERTIFIQUE-SE DE EXTRAIR O ARQUIVO .ZIP!
+(Clique com o botao direito em Geio-DiskRadar-Windows-v2.1.0.zip -> "Extrair Tudo...")
+
+OPCAO 1: GERAR O EXECUTAVEL VERSIONADO (.EXE)
+  1. Dê dois cliques em:
+       Compilar_EXE.bat
+  2. O script detecta automaticamente o Python 3.14 (ou outra versao instalada),
+     instala as dependencias e compila o binario final.
+  3. O executavel final versionado sera gerado como:
+       dist\DiskRadar-v2.1.0.exe
+       DiskRadar-v2.1.0.exe (copia na raiz)
+       DiskRadar.exe        (copia de conveniencia)
+  4. Caso ocorra qualquer falha, o log completo e gravado em:
+       compilacao.log
+
+OPCAO 2: EXECUTAR DIRETO (SEM PRECISAR COMPILAR)
+  1. Dê dois cliques em:
+       Executar_DiskRadar.bat
+  2. A interface gráfica do Geio DiskRadar v2.1.0 abre imediatamente.
+  3. Log de execucao registrado em:
+       execucao.log
+
+--------------------------------------------------------------------------------
+REQUISITOS NO WINDOWS:
+--------------------------------------------------------------------------------
+- Python 3.10, 3.11, 3.12, 3.13 ou 3.14 instalado.
+- Conexao com a internet na primeira execucao (para baixar customtkinter e pyinstaller).
+
+--------------------------------------------------------------------------------
+GARANTIA DE SEGURANCA:
+--------------------------------------------------------------------------------
+- O Geio DiskRadar opera EXCLUSIVAMENTE em modo LEITURA (Read-Only).
+- Nao formata, nao grava, nao modifica setores nem altera dados no disco.
+================================================================================
