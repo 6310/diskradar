@@ -2807,7 +2807,17 @@ async function applyGitHubOtaUpdate() {
 // Loop de sincronização e heartbeat
 setInterval(fetchState, 600);
 setInterval(() => apiPost('/api/heartbeat'), 2000);
-window.addEventListener('DOMContentLoaded', fetchState);
+window.addEventListener('DOMContentLoaded', async () => {
+  await fetchState();
+  const urlParams = new URLSearchParams(window.location.search);
+  const tabParam = urlParams.get('tab') || window.location.hash.slice(1);
+  if (tabParam) switchTab(tabParam);
+  const modalParam = urlParams.get('modal');
+  if (modalParam) {
+    const m = document.getElementById(modalParam);
+    if (m) m.classList.remove('hidden');
+  }
+});
 </script>
 </body>
 </html>

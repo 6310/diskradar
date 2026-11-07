@@ -1,98 +1,107 @@
-# 📡 Geio DiskRadar (v2.3.0) — Triador Forense e Indexador Read-Only de HDs e SSDs
+# Geio DiskRadar (v2.3.0) — Triador Forense e Indexador Read-Only de HDs e SSDs
 
-Software Desktop em Python 3.11+ para triagem ultra-rápida, forense e **100% Read-Only (somente leitura)** de HDs e SSDs conectados via Dock USB/SATA. Projetado para operadores de bancada, recuperadores de ativos e técnicos que precisam avaliar lotes de discos descartados ou sucata.
+Software desktop para triagem rapida, forense e **100% Read-Only (somente leitura)** de discos rigidos (HDs) e unidades de estado solido (SSDs) conectados via Dock USB, SATA ou adaptadores de bancada. Desenvolvido para peritos, tecnicos de hardware, recuperadores de ativos e analistas de seguranca da informacao que precisam avaliar lotes de discos descartados ou sucata sem alterar metadados na unidade inspecionada.
 
-O **DiskRadar v2.3.0** traz a interface gráfica **Stitch "Cyber-Forensic Precision"** (10 telas e modais unificados), motor de **Recuperação Rápida de Arquivos Apagados** (NTFS `$MFT` & `$Recycle.Bin` sem Deep Scan) e **Instalador Canônico com Auto-Update OTA via GitHub**.
+![Demonstracao do Geio DiskRadar](docs/img/diskradar-overview.gif)
 
 ---
 
-## 📥 Download & Instalação Rápida no Windows (1-Clique)
+## Download e Instalacao no Windows
 
-| Método | Como Usar | Pré-requisitos |
+| Metodo | Procedimento | Requisitos |
 |---|---|---|
-| **⭐ Instalador Oficial Único (`.exe`)** | [**Baixar Geio_DiskRadar_Setup_v2.3.0.exe**](https://github.com/6310/diskradar/releases/latest) | **Nenhum!** Não precisa de Python nem terminal. Basta dar dois cliques e avançar. |
-| **⚡ Instalador Automatizado (`.bat`)** | Baixe o repositório em ZIP, extraia e dê 2 cliques em **`Instalar_DiskRadar.bat`**. | Configura tudo sozinho (e instala o Python via `winget` se necessário). |
+| **Instalador Oficial (.exe)** | [Baixar Geio_DiskRadar_Setup_v2.3.0.exe](https://github.com/6310/diskradar/releases/latest) | Nenhum. Executavel autonomo com Python embutido. Instalacao guiada em dois cliques. |
+| **Instalador Automatizado (.bat)** | Baixe o codigo em ZIP, descompacte e execute `Instalar_DiskRadar.bat`. | Configura a instalacao central em `%LocalAppData%\Programs\GeioDiskRadar` e atalhos na Area de Trabalho. |
 
 ---
 
-## ✨ Principais Funcionalidades (v2.3.0)
+## Modulos do Sistema
 
-1. **Estação Forense Stitch "Cyber-Forensic Precision" (10 Telas & Modais):**
-   - **Tela 1 — Pastas Quentes (`pastas-quentes`):** 4 cartões Bento KPI, filtros por tipo (`TODAS`, `FOTOS`, `VÍDEOS`, `DOCS`, `MISTO`), ordenação por Score Forense (`0-100 pts`), Volume, Arquivos ou Recência, e botões `Copiar` e `Explorar` (`explorer.exe`).
-   - **Tela 2 — Arquivos Críticos (`arquivos-criticos`):** Filtros instantâneos pelas 10 categorias forenses, busca com debounce, e botões `Ver Hex` (abre o Inspetor Hexadecimal no arquivo), `Copiar` e `Abrir no Explorer` (`explorer.exe /select,"..."`).
-   - **Tela 3 — Árvore de Usuários & Atalhos Rápidos (`usuarios-atalhos`):** Cartões dinâmicos por perfil de usuário com 8 atalhos 1-clique (`Desktop`, `Documents`, `Downloads`, `Pictures`, `Videos`, `AppData`, `Browsers`, `SSH`) + Diretórios Globais do Sistema.
-   - **Tela 4 — Linha do Tempo & Atividade (`linha-do-tempo`):** Cronogeografia de atividade, Card de Insight Forense (Ano de Pico), gráfico de barras horizontais segmentadas ano a ano e matriz analítica consolidada.
-   - **Tela 5 — Log de Erros & Bad Blocks (`log-erros`):** 4 KPIs de telemetria física (`I/O Read Errors`, `PermissionError / ACL`, `Total de Incidentes`, `Setores Críticos 05/C5`), filtro de ACLs e exportação de dump `.TXT`.
-   - **Tela 6 — Monitor de Varredura ao Vivo (`live-monitor`):** Console de I/O em tempo real (`[KERNEL]`, `[SONDAGEM]`, `[IO_READ]`, `[HOT_FOLDER]`, `[MATCH_CRITICAL]`, `[SECTOR_WARN]`, `[FINISHED]`) e feed instantâneo de achados críticos.
-   - **Tela 7 — Resumo Executivo Pós-Varredura (`resumo-pos-varredura`):** Balanço final da sessão com hash SHA-256 da cadeia de custódia, top achados críticos e top pastas quentes.
-   - **Modal 8 — Diagnóstico S.M.A.R.T. Detalhado (`modal-smart`):** Score Eletromecânico (`0-100%`), 6 micro-cards de telemetria e tabela ATA/NVMe com alternância `RAW HEX` / `DECIMAL`.
-   - **Modal 9 — Exportação de Relatório HTML (`modal-export`):** Configuração e preview interativo do Catálogo de Autópsia `.html` 100% offline com seletor nativo de destino (`Salvar Como...`).
-   - **Modal 10 — Inspetor Hexadecimal Read-Only (`modal-hex`):** Leitura pura (`rb`) de blocos de 512 bytes com navegação de setores (`-512B` / `+512B`), cálculo de Entropia de Shannon (`0.00 - 8.00 bits/byte`), detector de assinatura Magic Number (`SQLite 3`, `Wallet.dat Berkeley DB`, `ZIP/OOXML`, `PDF`, `PST`, `KDBX`, `DWG`, `PSD`, etc.), Data Inspector (`uint8`, `uint16_le`, `uint32_le`) e SHA-256 parcial.
+### 1. Estacao Forense Stitch
+Interface unificada composta por 10 telas e modais analiticos integrados ao motor de inspecao:
 
-2. **Motor de Varredura Assíncrono Anti-Travamento (`os.scandir`):**
-   - Executa em `threading.Thread` dedicada com comunicação em tempo real via `queue.Queue` e snapshots thread-safe (`get_live_snapshot()`).
-   - Ignora diretórios de sistema e cache (`Windows`, `Program Files`, `AppData`, `node_modules`, `.git`, etc.) na varredura recursiva cega e aplica sondagem cirúrgica (`TARGETED_USER_SUBPATHS`) em locais de alto valor (carteiras cripto, cofres de navegadores, Outlook, WhatsApp, SSH).
+- **Pastas Quentes (`pastas-quentes`):** Cartoes Bento de telemetria, filtros por categoria (Fotos, Videos, Documentos, Misto) e ordenacao por Relevancia Forense (0 a 100 pontos), Volume, Quantidade e Recencia.
+- **Arquivos Criticos (`arquivos-criticos`):** Classificacao em 10 categorias prioritarias (carteiras cripto, sementes BIP-39, bancos de dados, arquivos financeiros, codigos-fonte, bancos de senhas, backups e imagens de disco).
+- **Recuperacao Rapida de Arquivos Apagados (`apagados-rapidos`):** Mapeamento e reconstrucao de registros deletados na MFT do NTFS e no `$Recycle.Bin` sem varrer setores fisicos (Zero Deep Scan).
+- **Arvore de Usuarios e Atalhos (`usuarios-atalhos`):** Deteccao de perfis locais com navegacao direta para Desktop, Documents, Downloads, AppData, navegadores e chaves SSH.
+- **Linha do Tempo de Atividade (`linha-do-tempo`):** Distribuicao cronologica de modificacao de arquivos por ano, identificando picos de uso do equipamento.
+- **Log de Erros Fisicos e Bad Blocks (`log-erros`):** Contadores de incidentes de I/O, falhas de leitura fisica e exportacao de relatorios de diagnostico.
+- **Inspetor Hexadecimal Read-Only (`modal-hex`):** Leitura de blocos de 512 bytes, calculo de Entropia de Shannon (0.00 a 8.00 bits/byte), identificador de Magic Numbers (Berkeley DB, SQLite, ZIP, PDF, KDBX, DWG, PST) e visualizador de tipos numericos em tempo real.
+- **Diagnostico S.M.A.R.T. Detalhado (`modal-smart`):** Tabela de saude eletromecanica, atributos criticos e telemetria bruta em hexadecimal e decimal.
+
+![Recuperacao de Arquivos Apagados e Inspecao Hexadecimal](docs/img/diskradar-quick-deleted.gif)
+
+### 2. Motor de Varredura Assincrono Anti-Travamento
+- Execucao multithread isolada com fila thread-safe (`queue.Queue`) e snapshots de telemetria.
+- Filtro inteligente de diretorios de sistema e cache (`Windows`, `Program Files`, `node_modules`, `.git`, caches de navegadores) para otimizar velocidade de varredura.
+- Sondagem cirurgica em caminhos especificos de alto valor probatorio.
 
 ---
 
-## 📂 Estrutura do Repositório
+## Estrutura do Repositorio
 
 ```text
 diskradar/
-├── main.py                 # Ponto de entrada (abre Stitch GUI v2.2.0 ou CustomTkinter com --classic)
-├── requirements.txt        # Dependências de produção
-├── .env.example            # Exemplo de variáveis de ambiente opcionais
-├── .gitignore              # Regras estratégicas de exclusão Git
-├── run_linux.sh            # Script de inicialização rápida no Linux
-├── Executar_DiskRadar.bat  # Inicializador direto no Windows (sem precisar compilar)
-├── Compilar_EXE.bat        # Compilador PyInstaller automatizado (gera DiskRadar-v2.2.0.exe)
-├── LEIAME.txt              # Guia rápido de uso em português para Windows
-├── README.md               # Esta documentação
-├── core/                   # Motor Forense Read-Only (100% testado)
-│   ├── bip39.py            # Dicionário de 2048 palavras e detector ultraleve de sementes BIP-39
-│   ├── classifier.py       # Motor de classificação e dataclasses de resultados
-│   ├── disk_info.py        # Coleta de Hardware, S/N, S.M.A.R.T. e Usuários
-│   ├── explorer_bridge.py  # Integração segura com o Windows Explorer (/select) e xdg-open
-│   ├── exporter.py         # Gerador de relatório HTML offline com busca JS
-│   ├── hex_inspector.py    # Inspetor Hexadecimal Read-Only (512B, Entropia de Shannon, Magic Bytes)
-│   ├── rules.py            # Regras, extensões, blocklists e limites de relevância
-│   └── scanner.py          # Thread assíncrona (AsyncDiskScanner) com fila de eventos e live snapshot
-├── tests/                  # Suíte de testes unitários automatizados
-│   ├── test_bip39.py       # Testes do detector de sementes BIP-39
-│   ├── test_classifier.py  # Testes de agrupamento e scores de relevância
-│   ├── test_disk_info.py   # Testes dos resumos de telemetria e crachá do disco
-│   ├── test_explorer_bridge.py # Testes da ponte do gerenciador de arquivos
-│   ├── test_hex_inspector.py   # Testes do inspetor hexadecimal Read-Only e entropia
-│   └── test_rules.py       # Testes de regras de negócio e limites
-└── ui/                     # Camada de Interface Gráfica Desktop
-    ├── stitch_server.py    # Servidor local ThreadingHTTPServer + Launcher nativo (--app mode)
-    ├── stitch_template.py  # Template SPA unificado das 10 telas Stitch Cyber-Forensic Precision
-    └── app.py              # Interface Gráfica CustomTkinter clássica (--classic)
+|-- main.py                 # Ponto de entrada (interface Stitch ou CustomTkinter via --classic)
+|-- requirements.txt        # Dependencias de producao
+|-- version.json            # Metadados de versao SemVer, GUID do aplicativo e URLs de update
+|-- .env.example            # Variaveis de ambiente opcionais
+|-- .gitignore              # Regras de exclusao de artefatos temporarios e segredos
+|-- run_linux.sh            # Script de inicializacao rapida em ambiente Linux
+|-- Executar_DiskRadar.bat  # Inicializador direto no Windows sem instalacao
+|-- Instalar_DiskRadar.bat  # Instalador canonico em lote para Windows
+|-- Desinstalar_DiskRadar.bat # Desinstalador e limpador de registros
+|-- Compilar_EXE.bat        # Compilador automatizado PyInstaller + Inno Setup
+|-- LEIAME.txt              # Instrucoes tecnicas para o operador Windows
+|-- README.md               # Documentacao principal
+|-- core/                   # Motor forense e modulos de inspecao
+|   |-- bip39.py            # Dicionario oficial e detector de sementes BIP-39 (12 e 24 palavras)
+|   |-- classifier.py       # Algoritmos de classificacao, pontuacao e agrupamento
+|   |-- deleted_scanner.py  # Parser binario de NTFS $MFT e $Recycle.Bin (sem Deep Scan)
+|   |-- diagnostics.py      # Autodiagnostico de ambiente, permissao e dependencias
+|   |-- disk_info.py        # Coleta de hardware, numero de serie, particoes e telemetria
+|   |-- evidence.py         # Extracao de evidencias com hash SHA-256 e manifesto de custodia
+|   |-- explorer_bridge.py  # Integracao com Windows Explorer (/select) com protecao anti-reentrancia
+|   |-- exporter.py         # Exportador de relatorio forense estatico em HTML
+|   |-- hex_inspector.py    # Leitor de blocos binarios e calculo de Entropia de Shannon
+|   |-- installer.py        # Motor de instalacao canonica, SemVer e auto-update OTA
+|   |-- rules.py            # Definicoes de categorias, assinaturas e extensoes de interesse
+|   `-- scanner.py          # Varredor de disco em thread dedicada
+|-- installer/              # Configuracoes de empacotamento
+|   |-- diskradar_setup.iss # Script oficial do Inno Setup 6 (instalador executavel)
+|   `-- file_version_info.txt # Metadados de versao PE do Windows (VSVersionInfo)
+|-- tests/                  # Suite de testes unitarios e de integracao
+`-- ui/                     # Camada de apresentacao grafica
+    |-- app.py              # Interface nativa CustomTkinter (modo classico)
+    |-- stitch_server.py    # Servidor HTTP local e disparador de janela desktop
+    |-- stitch_template.py  # Frontend SPA com componentes forenses
+    `-- assets/             # Icones e recursos graficos
 ```
 
 ---
 
-## 🚀 Como Executar
+## Execucao
 
-### No Linux (Desenvolvimento / Bancada):
+### Linux (Ambiente de Desenvolvimento ou Pericia):
 ```bash
-./run_linux.sh
-```
-Ou manualmente:
-```bash
-python3 main.py            # Abre a Interface Stitch v2.2.0 (10 Telas)
-python3 main.py --classic  # Abre a Interface CustomTkinter Clássica
+# Execucao padrao com a interface Stitch
+python3 main.py
+
+# Modo alternativo (interface CustomTkinter classica)
+python3 main.py --classic
 ```
 
-### No Windows:
-- **Instalador Oficial:** Baixe e execute `Geio_DiskRadar_Setup_v2.3.0.exe` (não precisa de Python).
-- **Instalador via Scripts:** Dê dois cliques em `Instalar_DiskRadar.bat` para instalar centralizado com atalhos.
-- **Execução direta portátil:** Dê dois cliques em `Executar_DiskRadar.bat`.
-- **Compilar o instalador e binário localmente:** Dê dois cliques em `Compilar_EXE.bat`.
+### Windows:
+- **Instalador executavel:** Execute `Geio_DiskRadar_Setup_v2.3.0.exe` e siga o assistente.
+- **Execucao direta do repositorio:** Execute `Executar_DiskRadar.bat`.
+- **Instalacao a partir do fonte:** Execute `Instalar_DiskRadar.bat`.
+- **Compilacao local do executavel e instalador:** Execute `Compilar_EXE.bat`.
 
 ---
 
-## 🧪 Suíte de Testes Automatizados
+## Suite de Testes
+
+Para executar os testes unitarios automatizados:
 
 ```bash
 python3 -m unittest discover -s tests -v
@@ -100,7 +109,8 @@ python3 -m unittest discover -s tests -v
 
 ---
 
-## 🔒 Garantia de Segurança Inegociável
+## Garantia de Seguranca Read-Only
 
-- O Geio DiskRadar opera **EXCLUSIVAMENTE em modo LEITURA (Read-Only)**.
-- O software não contém nenhuma rotina de formatação, particionamento, deleção, sobrescrita ou movimentação de arquivos na unidade analisada.
+- O Geio DiskRadar opera exclusivamente em modo somente leitura (Read-Only).
+- O software nao contem rotinas de formatacao, particionamento, delecao, sobrescrita ou movimentacao de dados na unidade de origem inspecionada.
+- Arquivos extraidos como evidencia ou recuperados sao gravados em pasta separada e identificados com hash criptografico SHA-256.

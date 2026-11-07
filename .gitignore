@@ -35,9 +35,10 @@ execucao.log
 *.sqlite
 *.sqlite3
 
-# Saídas de compilação e empacotamento PyInstaller
+# Saídas de compilação e empacotamento PyInstaller e Inno Setup
 build/
 dist/
+dist_installer/
 *.spec
 *.exe
 

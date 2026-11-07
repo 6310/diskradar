@@ -1,66 +1,56 @@
 ================================================================================
-              GEIO DISKRADAR v2.2.0 - PACOTE WINDOWS
+              GEIO DISKRADAR v2.3.0 - PACOTE WINDOWS
 ================================================================================
 
 Este pacote contem o codigo completo e os inicializadores prontos para o Windows
-do Geio DiskRadar v2.2.0, ferramenta forense de leitura 100% segura (Read-Only)
+do Geio DiskRadar v2.3.0, ferramenta forense de leitura 100% segura (Read-Only)
 para identificacao de carteiras de criptomoedas, sementes BIP-39, pastas quentes
-de midia/documentos e saude fisica S.M.A.R.T.
+de midia/documentos, saude fisica S.M.A.R.T. e recuperacao rapida de arquivos apagados.
 
 --------------------------------------------------------------------------------
-NOVIDADES DA VERSAO 2.2.0 (STITCH CYBER-FORENSIC PRECISION GUI):
+DESTAQUES DA VERSAO 2.3.0:
 --------------------------------------------------------------------------------
-- [NOVA GUI STITCH COMPLETA] Integracao total das 10 Telas e Modais gerados no
-  Google Stitch sob o Design System "Cyber-Forensic Precision":
-  1. Aba 1: Pastas Quentes (Bento KPIs, filtros Fotos/Videos/Docs, Score Forense)
-  2. Aba 2: Arquivos Criticos ("Agulhas no Palheiro" + 10 categorias + Ver Hex)
-  3. Aba 3: Arvore de Usuarios & Atalhos Rapidos (8 atalhos 1-clique por perfil)
-  4. Aba 4: Linha do Tempo & Atividade (Histograma anual + Matriz Analitica)
-  5. Aba 5: Log de Erros & Bad Blocks (Telemetria I/O + Filtro ACL + Dump .TXT)
-  6. Aba 6: Monitor de Varredura ao Vivo (Console de I/O em tempo real)
-  7. Aba 7: Resumo Executivo Pos-Varredura (Hash SHA-256 da sessao + Top achados)
-  8. Modal 8: Diagnostico S.M.A.R.T. Detalhado (Score 0-100% + Tabela ATA/NVMe)
-  9. Modal 9: Exportacao de Relatorio HTML (Preview interativo + Salvar Como)
-  10. Modal 10: Inspetor Hexadecimal Read-Only (Setor 512B, Entropia de Shannon,
-      Assinatura Magic Number e Data Inspector uint8/uint16/uint32)
-- [MODO HIBRIDO] Abre em janela dedicada nativa (--app mode via Edge/Chrome) e
-  inclui tambem a interface CustomTkinter classica (`python main.py --classic`).
+1. Instalador Oficial Unico (.exe) e Instalador Canonico (.bat):
+   - Instalacao centralizada em %LocalAppData%\Programs\GeioDiskRadar.
+   - Atalho unico na Area de Trabalho e Menu Iniciar com icone forense oficial.
+   - Comparador SemVer e limpeza automatica de arquivos obsoletos de versoes antigas.
+   - Atualizacao OTA (Over-The-Air) em 1 clique diretamente via GitHub.
+2. Recuperacao Rapida de Arquivos Apagados:
+   - Parser nativo de MFT do NTFS (registros FILE com fixup USA) e $Recycle.Bin.
+   - Reconstrucao exata de arquivos residentes e nao-residentes (via Data Runs)
+     com calculo de hash SHA-256 e manifesto de custodia, sem Deep Scan.
+3. Estacao Forense Stitch (10 Telas e Modais Unificados):
+   - Pastas Quentes, Arquivos Criticos, Arvore de Usuarios, Linha do Tempo,
+     Log de Erros Fisicos, Inspetor Hexadecimal com Entropia de Shannon
+     e Diagnostico S.M.A.R.T.
 
 --------------------------------------------------------------------------------
 COMO UTILIZAR NO WINDOWS:
 --------------------------------------------------------------------------------
 
 ATENCAO: Antes de executar qualquer script, CERTIFIQUE-SE DE EXTRAIR O ARQUIVO .ZIP!
-(Clique com o botao direito em Geio-DiskRadar-Windows-v2.2.0.zip -> "Extrair Tudo...")
+(Clique com o botao direito no arquivo .zip -> "Extrair Tudo...")
 
-OPCAO 1: GERAR O EXECUTAVEL VERSIONADO (.EXE)
+OPCAO 1: INSTALAR NO SISTEMA (RECOMENDADO)
   1. Dê dois cliques em:
-       Compilar_EXE.bat
-  2. O script detecta automaticamente o Python 3.14 (ou outra versao instalada),
-     instala as dependencias e compila o binario final.
-  3. O executavel final versionado sera gerado como:
-       dist\DiskRadar-v2.2.0.exe
-       DiskRadar-v2.2.0.exe (copia na raiz)
-       DiskRadar.exe        (copia de conveniencia)
-  4. Caso ocorra qualquer falha, o log completo e gravado em:
-       compilacao.log
+       Instalar_DiskRadar.bat
+  2. O script configura a instalacao oficial, cria os atalhos e abre a estacao.
+  3. No painel superior, utilize o botao "Instalacao & Update" para verificar
+     novas versoes disponibilizadas no GitHub.
 
-OPCAO 2: EXECUTAR DIRETO (SEM PRECISAR COMPILAR)
+OPCAO 2: EXECUTAR DIRETO (PORTATIL / SEM INSTALAR)
   1. Dê dois cliques em:
        Executar_DiskRadar.bat
-  2. A interface gráfica do Geio DiskRadar v2.2.0 abre imediatamente.
-  3. Log de execucao registrado em:
-       execucao.log
+  2. A interface gráfica abre imediatamente em modo janela dedicada.
+
+OPCAO 3: COMPILAR O EXECUTAVEL OU INSTALADOR LOCALMENTE
+  1. Dê dois cliques em:
+       Compilar_EXE.bat
+  2. Gera o binario standalone em dist\DiskRadar\ e, se o Inno Setup 6 estiver
+     instalado, gera o instalador final Geio_DiskRadar_Setup_v2.3.0.exe.
 
 --------------------------------------------------------------------------------
-REQUISITOS NO WINDOWS:
+GARANTIA READ-ONLY:
 --------------------------------------------------------------------------------
-- Python 3.10, 3.11, 3.12, 3.13 ou 3.14 instalado.
-- Conexao com a internet na primeira execucao (para baixar dependencias).
-
---------------------------------------------------------------------------------
-GARANTIA DE SEGURANCA:
---------------------------------------------------------------------------------
-- O Geio DiskRadar opera EXCLUSIVAMENTE em modo LEITURA (Read-Only).
-- Nao formata, nao grava, nao modifica setores nem altera dados no disco.
-================================================================================
+O Geio DiskRadar opera EXCLUSIVAMENTE em modo somente leitura (Read-Only).
+Nenhum dado ou metadado da unidade sob analise e alterado durante a operacao.
