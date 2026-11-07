@@ -991,6 +991,7 @@ class _StitchHTTPHandler(BaseHTTPRequestHandler):
             query_params = parse_qs(parsed.query)
             tab_param = query_params.get("tab", [""])[0]
             modal_param = query_params.get("modal", [""])[0]
+            title_param = query_params.get("title", [""])[0]
 
             state_data = self.controller.get_state_dict()
             if self.controller.last_deleted_scan is not None:
@@ -1027,11 +1028,59 @@ class _StitchHTTPHandler(BaseHTTPRequestHandler):
                         for e in d_res.entries
                     ]
                 }
+
+            hex_init_data = None
+            if modal_param == "modal-hex":
+                target_hex = ""
+                if state_data.get("results") and state_data["results"].get("critical_items"):
+                    target_hex = state_data["results"]["critical_items"][0].get("full_path", "")
+                if not target_hex:
+                    target_hex = self.controller.selected_path
+                if target_hex and os.path.exists(target_hex):
+                    try:
+                        h_res = inspect_file_sector(target_hex, offset=0, length=512)
+                        hex_init_data = {
+                            "ok": h_res.error_message is None,
+                            "file_path": h_res.file_path,
+                            "file_size": h_res.file_size,
+                            "formatted_size": format_size(h_res.file_size),
+                            "offset": h_res.offset,
+                            "offset_hex": f"0x{h_res.offset:08X}",
+                            "sector_lba": h_res.offset // 512,
+                            "length": h_res.length,
+                            "bytes_read": h_res.bytes_read,
+                            "entropy": h_res.entropy,
+                            "entropy_pct": min(100, int((h_res.entropy / 8.0) * 100)),
+                            "entropy_label": h_res.entropy_label,
+                            "magic_signature": h_res.magic_signature,
+                            "magic_details": h_res.magic_details,
+                            "partial_sha256": h_res.partial_sha256,
+                            "primitives": h_res.primitives,
+                            "error_message": h_res.error_message,
+                            "c_array_snippet": h_res.c_array_snippet,
+                            "python_bytes_snippet": h_res.python_bytes_snippet,
+                            "raw_text_dump": h_res.raw_text_dump,
+                            "rows": [
+                                {
+                                    "offset_int": r.offset_int,
+                                    "offset_hex": r.offset_hex,
+                                    "hex_bytes": r.hex_bytes,
+                                    "ascii_str": r.ascii_str,
+                                    "has_read_error": r.has_read_error,
+                                }
+                                for r in h_res.rows
+                            ]
+                        }
+                    except Exception:
+                        pass
+
             state_json = json.dumps(state_data).replace("</script>", "<\\/script>")
             injected_script = f"""<script>
 window.__INITIAL_STATE__ = {state_json};
 window.__INITIAL_TAB__ = {json.dumps(tab_param)};
 window.__INITIAL_MODAL__ = {json.dumps(modal_param)};
+window.__OVERLAY_TITLE__ = {json.dumps(title_param)};
+window.__INITIAL_HEX__ = {json.dumps(hex_init_data)};
 </script>
 """
             html_content = STITCH_SPA_HTML

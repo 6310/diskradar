@@ -13,6 +13,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import urllib.parse
 import urllib.request
 import zlib
 
@@ -307,11 +308,36 @@ def main():
             pass
 
         views = [
-            ("01_pastas_quentes.png", f"{url}?tab=pastas-quentes"),
-            ("02_arquivos_criticos.png", f"{url}?tab=arquivos-criticos"),
-            ("03_linha_do_tempo.png", f"{url}?tab=linha-do-tempo"),
-            ("04_apagados_rapidos.png", f"{url}?tab=arquivos-apagados"),
-            ("05_hex_inspector.png", f"{url}?modal=modal-hex"),
+            (
+                "01_pastas_quentes.png",
+                f"{url}?tab=pastas-quentes&title="
+                + urllib.parse.quote("01. PASTAS QUENTES // SCORE DE RELEVÂNCIA & MÍDIAS"),
+            ),
+            (
+                "02_arquivos_criticos.png",
+                f"{url}?tab=arquivos-criticos&title="
+                + urllib.parse.quote("02. ARQUIVOS CRÍTICOS // AGULHAS NO PALHEIRO & CRIPTO"),
+            ),
+            (
+                "03_linha_do_tempo.png",
+                f"{url}?tab=linha-do-tempo&title="
+                + urllib.parse.quote("03. LINHA DO TEMPO // HISTOGRAMA CRONOLÓGICO ANUAL"),
+            ),
+            (
+                "04_usuarios_atalhos.png",
+                f"{url}?tab=usuarios-atalhos&title="
+                + urllib.parse.quote("04. USUÁRIOS & ATALHOS // MAPEAMENTO DE PERFIS WINDOWS"),
+            ),
+            (
+                "05_apagados_rapidos.png",
+                f"{url}?tab=arquivos-apagados&title="
+                + urllib.parse.quote("01. APAGADOS RÁPIDOS // RECONSTRUÇÃO $MFT & LIXEIRA (ZERO DEEP SCAN)"),
+            ),
+            (
+                "06_hex_inspector.png",
+                f"{url}?modal=modal-hex&title="
+                + urllib.parse.quote("02. INSPETOR HEX // ANÁLISE DE ENTROPIA & SIGNATURES EM TEMPO REAL"),
+            ),
         ]
 
         print("[1/3] Capturando telas com Firefox Headless (1440x900)...")
@@ -343,19 +369,24 @@ def main():
     print("\n[3/3] Compilando GIFs animados em docs/img/...")
     docs_img_dir = os.path.join(BASE_DIR, "docs", "img")
 
-    # GIF 1: Overview do Dashboard (Pastas Quentes -> Arquivos Críticos -> Linha do Tempo)
-    overview_names = ["01_pastas_quentes.png", "02_arquivos_criticos.png", "03_linha_do_tempo.png"]
+    # GIF 1: Overview do Dashboard (Pastas Quentes -> Arquivos Críticos -> Linha do Tempo -> Usuários & Atalhos)
+    overview_names = [
+        "01_pastas_quentes.png",
+        "02_arquivos_criticos.png",
+        "03_linha_do_tempo.png",
+        "04_usuarios_atalhos.png",
+    ]
     overview_frames = [decoded_frames[n] for n in overview_names if n in decoded_frames]
     if overview_frames:
         gif1_path = os.path.join(docs_img_dir, "diskradar-overview.gif")
-        create_animated_gif(overview_frames, [300, 300, 300], gif1_path)
+        create_animated_gif(overview_frames, [130, 130, 130, 130], gif1_path)
 
     # GIF 2: Apagados Rápidos & Inspetor Hexadecimal
-    forensic_names = ["04_apagados_rapidos.png", "05_hex_inspector.png"]
+    forensic_names = ["05_apagados_rapidos.png", "06_hex_inspector.png"]
     forensic_frames = [decoded_frames[n] for n in forensic_names if n in decoded_frames]
     if forensic_frames:
         gif2_path = os.path.join(docs_img_dir, "diskradar-quick-deleted.gif")
-        create_animated_gif(forensic_frames, [320, 320], gif2_path)
+        create_animated_gif(forensic_frames, [150, 150], gif2_path)
 
     shutil.rmtree(temp_dir, ignore_errors=True)
     shutil.rmtree(temp_root, ignore_errors=True)

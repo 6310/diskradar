@@ -2402,9 +2402,9 @@ async function reloadHexCurrent() {
   await loadHexData(CURRENT_HEX_PATH, curr);
 }
 
-async function loadHexData(path, offset) {
-  const res = await apiPost('/api/hex_inspect', { path, offset, length: 512 });
-  document.getElementById('hex-path-label').innerText = res.file_path || path;
+function applyHexInspection(res, path) {
+  if (!res) return;
+  document.getElementById('hex-path-label').innerText = res.file_path || path || '';
   document.getElementById('hex-size-label').innerText = res.formatted_size || '0 B';
   document.getElementById('hex-offset-label').innerText = `${res.offset_hex || '0x00000000'} (LBA #${res.sector_lba || 0})`;
   document.getElementById('hex-prim-u8').innerText = res.primitives?.uint8 || 'N/A';
@@ -2434,6 +2434,11 @@ async function loadHexData(path, offset) {
         <div class="col-span-3 text-right text-secondary font-data-mono-sm tracking-widest">${escapeHtml(row.ascii_str)}</div>
       </div>`;
   }).join('');
+}
+
+async function loadHexData(path, offset) {
+  const res = await apiPost('/api/hex_inspect', { path, offset, length: 512 });
+  applyHexInspection(res, path);
 }
 
 function copyHexDump() {
@@ -2847,11 +2852,27 @@ async function applyInitialStateIfPresent() {
   const modalParam = window.__INITIAL_MODAL__ || urlParams.get('modal');
   if (modalParam) {
     if (modalParam === 'modal-hex') {
-      await openHexModal();
+      document.getElementById('modal-hex').classList.remove('hidden');
+      if (window.__INITIAL_HEX__) {
+        applyHexInspection(window.__INITIAL_HEX__, window.__INITIAL_HEX__.file_path);
+      } else {
+        await openHexModal();
+      }
     } else {
       const m = document.getElementById(modalParam);
       if (m) m.classList.remove('hidden');
     }
+  }
+  const overlayTitle = window.__OVERLAY_TITLE__ || urlParams.get('title');
+  if (overlayTitle) {
+    let badge = document.getElementById('diskradar-hud-overlay-badge');
+    if (!badge) {
+      badge = document.createElement('div');
+      badge.id = 'diskradar-hud-overlay-badge';
+      badge.className = 'fixed bottom-6 left-1/2 -translate-x-1/2 z-[99999] px-6 py-2.5 rounded-full bg-[#0c0e14]/95 border-2 border-[#00dbe9] shadow-[0_0_30px_rgba(0,219,233,0.55)] backdrop-blur-md text-[#dbfcff] font-mono text-[13px] font-bold tracking-wider flex items-center gap-3 select-none pointer-events-none uppercase whitespace-nowrap';
+      document.body.appendChild(badge);
+    }
+    badge.innerHTML = `<span class="w-2.5 h-2.5 rounded-full bg-[#4edea3] shadow-[0_0_12px_#4edea3] shrink-0"></span><span class="truncate">${escapeHtml(overlayTitle)}</span>`;
   }
 }
 
