@@ -20,6 +20,7 @@ import struct
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.request
 import zipfile
 from typing import Any, Dict, List, Optional, Set, Tuple
@@ -29,6 +30,7 @@ APP_NAME = "Geio DiskRadar"
 PUBLISHER = "Geio Forensics & Security"
 DEFAULT_VERSION = "2.3.0"
 UNINSTALL_REG_KEY = rf"Software\Microsoft\Windows\CurrentVersion\Uninstall\{{{APP_GUID}}}"
+UNINSTALL_INNO_REG_KEY = rf"Software\Microsoft\Windows\CurrentVersion\Uninstall\{{{APP_GUID}}}_is1"
 
 # Pastas e arquivos que NUNCA devem ser copiados como código nem apagados como obsoletos de usuário
 _IGNORED_DIRS: Set[str] = {
@@ -46,6 +48,7 @@ _IGNORED_DIRS: Set[str] = {
 _IGNORED_FILES: Set[str] = {
     "cases.db",
     "compilacao.log",
+    "execucao.log",
     "instalacao.log",
     "install_manifest.json",
 }
@@ -277,15 +280,26 @@ def get_installed_info(custom_install_dir: Optional[str] = None) -> Dict[str, An
             except Exception:
                 pass
 
-    # Verifica Registro do Windows se em win32 e usando o diretório padrão
+    # Verifica Registro do Windows (chaves HKCU/HKLM do batch/python installer e do Inno Setup)
     if sys.platform == "win32" and custom_install_dir is None:
         try:
             import winreg
-            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, UNINSTALL_REG_KEY, 0, winreg.KEY_READ) as key:
-                reg_ver, _ = winreg.QueryValueEx(key, "DisplayVersion")
-                registry_registered = True
-                if not installed_version and reg_ver:
-                    installed_version = str(reg_ver).strip().lstrip("vV")
+            keys_to_probe = [
+                (winreg.HKEY_CURRENT_USER, UNINSTALL_REG_KEY),
+                (winreg.HKEY_CURRENT_USER, UNINSTALL_INNO_REG_KEY),
+                (winreg.HKEY_LOCAL_MACHINE, UNINSTALL_REG_KEY),
+                (winreg.HKEY_LOCAL_MACHINE, UNINSTALL_INNO_REG_KEY),
+            ]
+            for root_hive, subkey in keys_to_probe:
+                try:
+                    with winreg.OpenKey(root_hive, subkey, 0, winreg.KEY_READ) as key:
+                        reg_ver, _ = winreg.QueryValueEx(key, "DisplayVersion")
+                        registry_registered = True
+                        if not installed_version and reg_ver:
+                            installed_version = str(reg_ver).strip().lstrip("vV")
+                        break
+                except Exception:
+                    continue
         except Exception:
             pass
 
@@ -343,24 +357,137 @@ def _register_windows_uninstall(install_dir: str, version_str: str, ico_path: st
 
 
 def _remove_windows_uninstall_registry() -> bool:
-    """Remove a chave Uninstall do Registro do Windows."""
+    """Remove as chaves Uninstall do Registro do Windows (tanto a direta quanto a do Inno Setup)."""
     if sys.platform != "win32":
         return False
+    ok = False
     try:
         import winreg
-        winreg.DeleteKey(winreg.HKEY_CURRENT_USER, UNINSTALL_REG_KEY)
+        for subkey in (UNINSTALL_REG_KEY, UNINSTALL_INNO_REG_KEY):
+            try:
+                winreg.DeleteKey(winreg.HKEY_CURRENT_USER, subkey)
+                ok = True
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return ok
+
+
+def _escape_ps_single_quote(val: Any) -> str:
+    """Escapa aspas simples duplicando-as para strings literais do PowerShell."""
+    return str(val).replace("'", "''")
+
+
+def get_windows_shell_folders() -> Tuple[List[str], List[str]]:
+    """
+    Retorna as pastas existentes do sistema para (Desktop, Menu Iniciar),
+    consultando o Registro do Windows (User Shell Folders) e cobrindo
+    tanto sistemas em inglês ('Desktop') quanto em português ('Área de Trabalho')
+    ou pastas sincronizadas no OneDrive.
+    """
+    desktop_candidates: List[str] = []
+    programs_candidates: List[str] = []
+
+    if sys.platform == "win32":
+        try:
+            import winreg
+            reg_path = r"Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders"
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, reg_path, 0, winreg.KEY_READ) as key:
+                try:
+                    d_val, _ = winreg.QueryValueEx(key, "Desktop")
+                    if d_val:
+                        desktop_candidates.append(os.path.expandvars(str(d_val)))
+                except Exception:
+                    pass
+                try:
+                    p_val, _ = winreg.QueryValueEx(key, "Programs")
+                    if p_val:
+                        programs_candidates.append(os.path.expandvars(str(p_val)))
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    home = os.path.expanduser("~")
+    desktop_candidates.extend([
+        os.path.join(home, "Desktop"),
+        os.path.join(home, "Área de Trabalho"),
+        os.path.join(home, "OneDrive", "Desktop"),
+        os.path.join(home, "OneDrive", "Área de Trabalho"),
+    ])
+
+    appdata = os.environ.get("APPDATA") or os.path.join(home, "AppData", "Roaming")
+    programs_candidates.extend([
+        os.path.join(appdata, "Microsoft", "Windows", "Start Menu", "Programs"),
+    ])
+
+    def _filter_dirs(cands: List[str]) -> List[str]:
+        seen: Set[str] = set()
+        out: List[str] = []
+        for c in cands:
+            norm = os.path.normcase(os.path.abspath(c))
+            if norm not in seen and os.path.isdir(c):
+                seen.add(norm)
+                out.append(c)
+        return out
+
+    return (_filter_dirs(desktop_candidates), _filter_dirs(programs_candidates))
+
+
+def _request_graceful_shutdown(port: int = 8080, timeout: float = 0.8) -> bool:
+    """
+    Envia sinal HTTP gracioso para encerrar instâncias abertas do Geio DiskRadar
+    na porta padrão antes de executar sobrescrita de arquivos.
+    """
+    try:
+        url = f"http://127.0.0.1:{port}/api/app/shutdown"
+        req = urllib.request.Request(url, headers={"User-Agent": "GeioDiskRadar-Installer"})
+        with urllib.request.urlopen(req, timeout=timeout):
+            pass
+        time.sleep(0.5)
         return True
     except Exception:
         return False
 
 
-def _cleanup_legacy_versioned_shortcuts(desktop_dir: str, start_menu_dir: str) -> List[str]:
+def _safe_copy_with_retry(src: str, dst: str, max_retries: int = 3, delay: float = 0.3) -> None:
+    """Copia arquivo com retry para mitigar travas transitórias de I/O ou antivírus no Windows."""
+    last_err: Optional[Exception] = None
+    for attempt in range(max_retries):
+        try:
+            shutil.copy2(src, dst)
+            return
+        except (PermissionError, OSError) as exc:
+            last_err = exc
+            time.sleep(delay)
+    if last_err:
+        raise last_err
+
+
+def _safe_remove_with_retry(path: str, max_retries: int = 3, delay: float = 0.3) -> bool:
+    """Remove arquivo com retry para contornar locks temporários."""
+    if not os.path.isfile(path):
+        return True
+    last_err: Optional[Exception] = None
+    for attempt in range(max_retries):
+        try:
+            os.remove(path)
+            return True
+        except (PermissionError, OSError) as exc:
+            last_err = exc
+            time.sleep(delay)
+    return False
+
+
+def _cleanup_legacy_versioned_shortcuts(desktop_dirs: List[str], start_menu_dirs: List[str]) -> List[str]:
     """
     Remove atalhos antigos que continham número de versão no nome (ex: 'DiskRadar v2.1.lnk',
     'Geio DiskRadar v2.2.0.lnk'), mantendo apenas o atalho canônico 'Geio DiskRadar.lnk'.
     """
     removed: List[str] = []
-    for folder in (desktop_dir, start_menu_dir):
+    all_folders = list(desktop_dirs) + list(start_menu_dirs)
+    for folder in all_folders:
         if not folder or not os.path.isdir(folder):
             continue
         try:
@@ -370,11 +497,8 @@ def _cleanup_legacy_versioned_shortcuts(desktop_dir: str, start_menu_dir: str) -
                     continue
                 if ("diskradar" in low or "disk radar" in low) and fname != f"{APP_NAME}.lnk":
                     full_p = os.path.join(folder, fname)
-                    try:
-                        os.remove(full_p)
+                    if _safe_remove_with_retry(full_p):
                         removed.append(full_p)
-                    except Exception:
-                        pass
         except Exception:
             pass
     return removed
@@ -383,24 +507,23 @@ def _cleanup_legacy_versioned_shortcuts(desktop_dir: str, start_menu_dir: str) -
 def _create_windows_shortcuts(install_dir: str, ico_path: str) -> Dict[str, Any]:
     """
     Cria o atalho único 'Geio DiskRadar.lnk' na Área de Trabalho e no Menu Iniciar
-    usando WScript.Shell via PowerShell nativo do Windows.
+    usando WScript.Shell via PowerShell nativo do Windows com escaping estrito.
     """
     if sys.platform != "win32":
         return {"created": False, "reason": "Not running on win32"}
 
-    desktop_dir = os.path.join(os.path.expanduser("~"), "Desktop")
-    appdata = os.environ.get("APPDATA") or os.path.join(os.path.expanduser("~"), "AppData", "Roaming")
-    start_menu_dir = os.path.join(appdata, "Microsoft", "Windows", "Start Menu", "Programs")
-
-    removed_legacy = _cleanup_legacy_versioned_shortcuts(desktop_dir, start_menu_dir)
+    desktop_dirs, start_menu_dirs = get_windows_shell_folders()
+    removed_legacy = _cleanup_legacy_versioned_shortcuts(desktop_dirs, start_menu_dirs)
 
     # Cria launcher VBS invisível para iniciar o DiskRadar sem janela preta de prompt
     vbs_launcher = os.path.join(install_dir, "Iniciar_Silencioso.vbs")
     bat_launcher = os.path.join(install_dir, "Executar_DiskRadar.bat")
+    safe_vbs_install_dir = install_dir.replace('"', '""')
+    safe_vbs_bat = bat_launcher.replace('"', '""')
     vbs_content = (
         'Set WshShell = CreateObject("WScript.Shell")\r\n'
-        f'WshShell.CurrentDirectory = "{install_dir}"\r\n'
-        f'WshShell.Run chr(34) & "{bat_launcher}" & chr(34), 0, False\r\n'
+        f'WshShell.CurrentDirectory = "{safe_vbs_install_dir}"\r\n'
+        f'WshShell.Run chr(34) & "{safe_vbs_bat}" & chr(34), 0, False\r\n'
         'Set WshShell = Nothing\r\n'
     )
     try:
@@ -409,30 +532,36 @@ def _create_windows_shortcuts(install_dir: str, ico_path: str) -> Dict[str, Any]
     except Exception:
         pass
 
-    shortcuts_to_make = []
-    if os.path.isdir(desktop_dir):
-        shortcuts_to_make.append(os.path.join(desktop_dir, f"{APP_NAME}.lnk"))
-    if os.path.isdir(start_menu_dir):
-        shortcuts_to_make.append(os.path.join(start_menu_dir, f"{APP_NAME}.lnk"))
+    shortcuts_to_make: List[str] = []
+    for d in desktop_dirs:
+        shortcuts_to_make.append(os.path.join(d, f"{APP_NAME}.lnk"))
+    for s in start_menu_dirs:
+        shortcuts_to_make.append(os.path.join(s, f"{APP_NAME}.lnk"))
 
     created_paths: List[str] = []
+    safe_vbs = _escape_ps_single_quote(vbs_launcher)
+    safe_dir = _escape_ps_single_quote(install_dir)
+    safe_ico = _escape_ps_single_quote(ico_path)
+
     for lnk_path in shortcuts_to_make:
+        safe_lnk = _escape_ps_single_quote(lnk_path)
         ps_script = (
             "$ws = New-Object -ComObject WScript.Shell; "
-            f"$s = $ws.CreateShortcut('{lnk_path}'); "
-            f"$s.TargetPath = 'wscript.exe'; "
-            f"$s.Arguments = '\"{vbs_launcher}\"'; "
-            f"$s.WorkingDirectory = '{install_dir}'; "
-            f"$s.IconLocation = '{ico_path},0'; "
-            f"$s.Description = 'Geio DiskRadar — Triagem Forense & Recuperação 100% Read-Only'; "
+            f"$s = $ws.CreateShortcut('{safe_lnk}'); "
+            "$s.TargetPath = 'wscript.exe'; "
+            f"$s.Arguments = '\"{safe_vbs}\"'; "
+            f"$s.WorkingDirectory = '{safe_dir}'; "
+            f"$s.IconLocation = '{safe_ico},0'; "
+            "$s.Description = 'Geio DiskRadar — Triagem Forense & Recuperação 100% Read-Only'; "
             "$s.Save()"
         )
         try:
             subprocess.run(
-                ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps_script],
+                ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-NonInteractive", "-Command", "-"],
+                input=ps_script.encode("utf-8"),
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
-                timeout=8,
+                timeout=10,
             )
             if os.path.isfile(lnk_path):
                 created_paths.append(lnk_path)
@@ -517,7 +646,10 @@ def install_or_upgrade_local(
 
     os.makedirs(dst_root, exist_ok=True)
 
-    # 2. Carrega manifesto antigo para identificar arquivos obsoletos que saíram de linha
+    # 2. Envia sinal para encerrar graciosamente qualquer instância aberta antes de tocar nos arquivos
+    _request_graceful_shutdown()
+
+    # 3. Carrega manifesto antigo para identificar arquivos obsoletos que saíram de linha
     old_manifest_path = os.path.join(dst_root, "install_manifest.json")
     old_tracked_files: Set[str] = set()
     if os.path.isfile(old_manifest_path):
@@ -528,28 +660,39 @@ def install_or_upgrade_local(
         except Exception:
             pass
 
-    # 3. Copia os arquivos novos se src_root != dst_root
+    # 4. Copia os arquivos novos se src_root != dst_root com retry anti-lock
     same_directory = (os.path.normcase(src_root) == os.path.normcase(dst_root))
     rel_files = _collect_project_files(src_root)
     new_tracked_hashes: Dict[str, str] = {}
     copied_count = 0
 
-    for rel_p in rel_files:
-        src_file = os.path.join(src_root, rel_p)
-        dst_file = os.path.join(dst_root, rel_p)
-        norm_rel = rel_p.replace("\\", "/")
+    try:
+        for rel_p in rel_files:
+            src_file = os.path.join(src_root, rel_p)
+            dst_file = os.path.join(dst_root, rel_p)
+            norm_rel = rel_p.replace("\\", "/")
 
-        if not same_directory:
-            os.makedirs(os.path.dirname(dst_file), exist_ok=True)
-            shutil.copy2(src_file, dst_file)
-            copied_count += 1
+            if not same_directory:
+                os.makedirs(os.path.dirname(dst_file), exist_ok=True)
+                _safe_copy_with_retry(src_file, dst_file)
+                copied_count += 1
 
-        try:
-            new_tracked_hashes[norm_rel] = _sha256_file(dst_file)
-        except Exception:
-            pass
+            try:
+                new_tracked_hashes[norm_rel] = _sha256_file(dst_file)
+            except Exception:
+                pass
+    except (PermissionError, OSError) as exc:
+        return {
+            "ok": False,
+            "action": "FILE_LOCKED",
+            "install_dir": dst_root,
+            "error": (
+                f"Não foi possível gravar os arquivos da nova versão em '{dst_root}' porque um arquivo está bloqueado "
+                f"ou em uso ({exc}). Certifique-se de fechar qualquer instância em execução do Geio DiskRadar e tente novamente."
+            ),
+        }
 
-    # 4. Gera ícone oficial .ico dentro da instalação antes de comparar obsoletos
+    # 5. Gera ícone oficial .ico dentro da instalação antes de comparar obsoletos
     ico_rel = "ui/assets/diskradar.ico"
     ico_full = os.path.join(dst_root, "ui", "assets", "diskradar.ico")
     try:
@@ -558,20 +701,17 @@ def install_or_upgrade_local(
     except Exception:
         pass
 
-    # 5. Remove cirurgicamente arquivos obsoletos que existiam na versão anterior mas não na nova
+    # 6. Remove cirurgicamente arquivos obsoletos que existiam na versão anterior mas não na nova
     removed_obsolete: List[str] = []
     if old_tracked_files and not same_directory:
         for old_rel in old_tracked_files:
             if old_rel not in new_tracked_hashes:
                 obsolete_full = os.path.join(dst_root, old_rel.replace("/", os.sep))
                 if os.path.isfile(obsolete_full):
-                    try:
-                        os.remove(obsolete_full)
+                    if _safe_remove_with_retry(obsolete_full):
                         removed_obsolete.append(old_rel)
-                    except Exception:
-                        pass
 
-    # 6. Salva o novo install_manifest.json
+    # 7. Salva o novo install_manifest.json
     manifest_payload = {
         "app_id": APP_GUID,
         "app_name": APP_NAME,
@@ -587,7 +727,7 @@ def install_or_upgrade_local(
     with open(old_manifest_path, "w", encoding="utf-8") as f:
         json.dump(manifest_payload, f, indent=2, ensure_ascii=False)
 
-    # 7. Integração com Registro do Windows e Atalhos (somente quando instalado no Windows)
+    # 8. Integração com Registro do Windows e Atalhos (somente quando instalado no Windows)
     reg_ok = False
     shortcut_info: Dict[str, Any] = {"created": False}
     if create_shortcuts and sys.platform == "win32":
@@ -617,19 +757,17 @@ def uninstall_canonical(custom_install_dir: Optional[str] = None) -> Dict[str, A
     target_dir = os.path.abspath(custom_install_dir or get_canonical_install_dir())
     removed_shortcuts: List[str] = []
 
+    # Envia sinal de shutdown se o aplicativo estiver rodando
+    _request_graceful_shutdown()
+
     if sys.platform == "win32" and custom_install_dir is None:
-        desktop_dir = os.path.join(os.path.expanduser("~"), "Desktop")
-        appdata = os.environ.get("APPDATA") or os.path.join(os.path.expanduser("~"), "AppData", "Roaming")
-        start_menu_dir = os.path.join(appdata, "Microsoft", "Windows", "Start Menu", "Programs")
-        for folder in (desktop_dir, start_menu_dir):
+        desktop_dirs, start_menu_dirs = get_windows_shell_folders()
+        for folder in (desktop_dirs + start_menu_dirs):
             lnk = os.path.join(folder, f"{APP_NAME}.lnk")
             if os.path.isfile(lnk):
-                try:
-                    os.remove(lnk)
+                if _safe_remove_with_retry(lnk):
                     removed_shortcuts.append(lnk)
-                except Exception:
-                    pass
-        _cleanup_legacy_versioned_shortcuts(desktop_dir, start_menu_dir)
+        _cleanup_legacy_versioned_shortcuts(desktop_dirs, start_menu_dirs)
         _remove_windows_uninstall_registry()
 
     if os.path.isdir(target_dir):
@@ -715,13 +853,14 @@ def apply_github_ota_update(
         with zipfile.ZipFile(zip_path, "r") as zf:
             zf.extractall(extract_dir)
 
-        # Localiza a subpasta extraída que contém main.py
+        # Localiza a pasta raiz do código (diretamente ou em subpasta como diskradar-main)
         extracted_root = extract_dir
-        for item in os.listdir(extract_dir):
-            cand = os.path.join(extract_dir, item)
-            if os.path.isdir(cand) and os.path.isfile(os.path.join(cand, "main.py")):
-                extracted_root = cand
-                break
+        if not os.path.isfile(os.path.join(extract_dir, "main.py")):
+            for item in os.listdir(extract_dir):
+                cand = os.path.join(extract_dir, item)
+                if os.path.isdir(cand) and os.path.isfile(os.path.join(cand, "main.py")):
+                    extracted_root = cand
+                    break
 
         res = install_or_upgrade_local(
             source_dir=extracted_root,

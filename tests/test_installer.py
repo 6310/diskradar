@@ -21,10 +21,15 @@ from core.installer import (
     compare_semver,
     generate_cyber_radar_ico,
     get_installed_info,
+    get_windows_shell_folders,
     install_or_upgrade_local,
     load_version_json,
     parse_semver,
     uninstall_canonical,
+    _escape_ps_single_quote,
+    _request_graceful_shutdown,
+    _safe_copy_with_retry,
+    _safe_remove_with_retry,
 )
 
 
@@ -167,6 +172,62 @@ class TestInstallerAndVersioning(unittest.TestCase):
         self.assertIn("UsePreviousAppDir=yes", iss_content)
         self.assertIn("DirExistsWarning=no", iss_content)
         self.assertIn("[InstallDelete]", iss_content)
+
+    def test_05_powershell_escaping_and_shell_folders(self):
+        """Valida escape estrito de aspas simples para PowerShell e detecção de pastas de shell."""
+        # Escape de aspas simples
+        raw_path = r"C:\Users\John O'Connor\Desktop"
+        escaped = _escape_ps_single_quote(raw_path)
+        self.assertEqual(escaped, r"C:\Users\John O''Connor\Desktop")
+
+        # Teste de detecção de pastas do sistema
+        desktops, programs = get_windows_shell_folders()
+        self.assertIsInstance(desktops, list)
+        self.assertIsInstance(programs, list)
+
+    def test_06_file_lock_retry_and_graceful_shutdown(self):
+        """Valida mecanismos de tolerância a falhas, retentativa de cópia/remoção e shutdown."""
+        src_file = os.path.join(self.temp_dir, "teste_src.txt")
+        dst_file = os.path.join(self.temp_dir, "teste_dst.txt")
+        with open(src_file, "w", encoding="utf-8") as f:
+            f.write("CONTEUDO_FORENSE")
+
+        _safe_copy_with_retry(src_file, dst_file, max_retries=2, delay=0.01)
+        self.assertTrue(os.path.isfile(dst_file))
+
+        ok_rem = _safe_remove_with_retry(dst_file, max_retries=2, delay=0.01)
+        self.assertTrue(ok_rem)
+        self.assertFalse(os.path.exists(dst_file))
+
+        # Testa shutdown gracioso com porta inativa (deve retornar False sem exceções)
+        shutdown_res = _request_graceful_shutdown(port=59999, timeout=0.2)
+        self.assertFalse(shutdown_res)
+
+    def test_07_batch_scripts_python_runner_robustness(self):
+        """Valida que todos os scripts .bat usam expansão segura de Python (sem quebra em 'py -3') e tratam pastas pt-BR."""
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+        # 1. Instalar_DiskRadar.bat
+        inst_bat = os.path.join(base_dir, "Instalar_DiskRadar.bat")
+        with open(inst_bat, "r", encoding="utf-8") as f:
+            inst_content = f.read()
+        self.assertIn('"%PY_EXE%" %PY_ARGS% -m core.installer --install', inst_content)
+        self.assertNotIn('"%PY_BIN%"', inst_content)
+        self.assertIn('start "" /D "%LOCALAPPDATA%', inst_content)
+
+        # 2. Executar_DiskRadar.bat
+        exec_bat = os.path.join(base_dir, "Executar_DiskRadar.bat")
+        with open(exec_bat, "r", encoding="utf-8") as f:
+            exec_content = f.read()
+        self.assertIn('"%PY_EXE%" %PY_ARGS%', exec_content)
+        self.assertIn("v2.3.0", exec_content)
+
+        # 3. Desinstalar_DiskRadar.bat
+        des_bat = os.path.join(base_dir, "Desinstalar_DiskRadar.bat")
+        with open(des_bat, "r", encoding="utf-8") as f:
+            des_content = f.read()
+        self.assertIn('"%PY_EXE%" %PY_ARGS% -m core.installer --uninstall', des_content)
+        self.assertIn("Área de Trabalho", des_content)
 
 
 if __name__ == "__main__":

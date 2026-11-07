@@ -55,6 +55,16 @@ class TestBatchScriptsSyntax(unittest.TestCase):
         self.assertIn("core.installer --install", content)
         self.assertIn("if errorlevel 1 goto", content)
 
+    def test_desinstalar_diskradar_bat_syntax(self):
+        bat_path = os.path.join(BASE_DIR, "Desinstalar_DiskRadar.bat")
+        self.assertTrue(os.path.isfile(bat_path), f"Arquivo não encontrado: {bat_path}")
+
+        with open(bat_path, "r", encoding="utf-8", errors="replace") as f:
+            content = f.read()
+
+        self.assertIn("core.installer --uninstall", content)
+        self.assertIn("HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall", content)
+
 
 if __name__ == "__main__":
     unittest.main()

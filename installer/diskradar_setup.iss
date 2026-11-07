@@ -52,6 +52,8 @@ Type: filesandordirs; Name: "{app}\ui"
 Type: files; Name: "{app}\DiskRadar-*.exe"
 Type: files; Name: "{userdesktop}\DiskRadar*.lnk"
 Type: files; Name: "{userdesktop}\Geio DiskRadar v*.lnk"
+Type: files; Name: "{userprograms}\DiskRadar*.lnk"
+Type: files; Name: "{userprograms}\Geio DiskRadar v*.lnk"
 
 [Files]
 Source: "..\main.py"; DestDir: "{app}"; Flags: ignoreversion
@@ -97,18 +99,29 @@ begin
   Result := (Major * 1000000) + (Minor * 1000) + PatchNum;
 end;
 
+function CheckRegistryForVersion(RootKey: Integer; SubKey: String; var VerOut: String): Boolean;
+begin
+  Result := RegQueryStringValue(RootKey, SubKey, 'DisplayVersion', VerOut);
+end;
+
 function InitializeSetup(): Boolean;
 var
   OldVersion: String;
   NewVerNum, OldVerNum: Int64;
-  RegKey: String;
+  RegKeyIs1, RegKeyDirect: String;
+  Found: Boolean;
 begin
   Result := True;
   NewVerNum := ParseSemVer('{#MyAppVersion}');
-  RegKey := 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{#MyAppId}_is1';
+  RegKeyIs1 := 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{#MyAppId}_is1';
+  RegKeyDirect := 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{#MyAppId}';
 
-  if RegQueryStringValue(HKCU, RegKey, 'DisplayVersion', OldVersion) or
-     RegQueryStringValue(HKLM, RegKey, 'DisplayVersion', OldVersion) then
+  Found := CheckRegistryForVersion(HKCU, RegKeyIs1, OldVersion) or
+           CheckRegistryForVersion(HKLM, RegKeyIs1, OldVersion) or
+           CheckRegistryForVersion(HKCU, RegKeyDirect, OldVersion) or
+           CheckRegistryForVersion(HKLM, RegKeyDirect, OldVersion);
+
+  if Found and (OldVersion <> '') then
   begin
     OldVerNum := ParseSemVer(OldVersion);
     if OldVerNum > NewVerNum then

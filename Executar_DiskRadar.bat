@@ -35,42 +35,70 @@ if not exist "%~dp0main.py" (
     exit /b 1
 )
 
-set "PY_BIN="
+set "PY_EXE="
+set "PY_ARGS="
+
 where python.exe >nul 2>&1
-if %errorlevel% equ 0 set "PY_BIN=python"
-
-if not defined PY_BIN (
-    where py.exe >nul 2>&1
-    if %errorlevel% equ 0 set "PY_BIN=py -3"
+if %errorlevel% equ 0 (
+    set "PY_EXE=python"
+    goto :PYTHON_OK
 )
 
-if not defined PY_BIN (
-    if exist "%LOCALAPPDATA%\Programs\Python\Python314\python.exe" set "PY_BIN=%LOCALAPPDATA%\Programs\Python\Python314\python.exe"
-    if exist "%LOCALAPPDATA%\Programs\Python\Python313\python.exe" set "PY_BIN=%LOCALAPPDATA%\Programs\Python\Python313\python.exe"
-    if exist "%LOCALAPPDATA%\Programs\Python\Python312\python.exe" set "PY_BIN=%LOCALAPPDATA%\Programs\Python\Python312\python.exe"
-    if exist "%LOCALAPPDATA%\Programs\Python\Python311\python.exe" set "PY_BIN=%LOCALAPPDATA%\Programs\Python\Python311\python.exe"
+where py.exe >nul 2>&1
+if %errorlevel% equ 0 (
+    set "PY_EXE=py"
+    set "PY_ARGS=-3"
+    goto :PYTHON_OK
 )
 
-if not defined PY_BIN (
-    if exist "C:\Program Files\Python314\python.exe" set "PY_BIN=C:\Program Files\Python314\python.exe"
-    if exist "C:\Program Files\Python313\python.exe" set "PY_BIN=C:\Program Files\Python313\python.exe"
-    if exist "C:\Program Files\Python312\python.exe" set "PY_BIN=C:\Program Files\Python312\python.exe"
-    if exist "C:\Program Files\Python311\python.exe" set "PY_BIN=C:\Program Files\Python311\python.exe"
+if exist "%LOCALAPPDATA%\Programs\Python\Python314\python.exe" (
+    set "PY_EXE=%LOCALAPPDATA%\Programs\Python\Python314\python.exe"
+    goto :PYTHON_OK
+)
+if exist "%LOCALAPPDATA%\Programs\Python\Python313\python.exe" (
+    set "PY_EXE=%LOCALAPPDATA%\Programs\Python\Python313\python.exe"
+    goto :PYTHON_OK
+)
+if exist "%LOCALAPPDATA%\Programs\Python\Python312\python.exe" (
+    set "PY_EXE=%LOCALAPPDATA%\Programs\Python\Python312\python.exe"
+    goto :PYTHON_OK
+)
+if exist "%LOCALAPPDATA%\Programs\Python\Python311\python.exe" (
+    set "PY_EXE=%LOCALAPPDATA%\Programs\Python\Python311\python.exe"
+    goto :PYTHON_OK
 )
 
-if not defined PY_BIN (
+if exist "C:\Program Files\Python314\python.exe" (
+    set "PY_EXE=C:\Program Files\Python314\python.exe"
+    goto :PYTHON_OK
+)
+if exist "C:\Program Files\Python313\python.exe" (
+    set "PY_EXE=C:\Program Files\Python313\python.exe"
+    goto :PYTHON_OK
+)
+if exist "C:\Program Files\Python312\python.exe" (
+    set "PY_EXE=C:\Program Files\Python312\python.exe"
+    goto :PYTHON_OK
+)
+if exist "C:\Program Files\Python311\python.exe" (
+    set "PY_EXE=C:\Program Files\Python311\python.exe"
+    goto :PYTHON_OK
+)
+
+:PYTHON_OK
+if not defined PY_EXE (
     echo [ERRO FATAL] Python 3 nao encontrado!
     exit /b 1
 )
 
 echo Python detectado:
-%PY_BIN% --version
+"%PY_EXE%" %PY_ARGS% --version
 echo.
 
 echo Instalando/verificando dependencias...
-%PY_BIN% -m pip install -r requirements.txt --quiet
+"%PY_EXE%" %PY_ARGS% -m pip install -r requirements.txt --quiet
 
-echo Abrindo interface grafica do Geio DiskRadar v2.2.0...
-start "" "%PY_BIN%" main.py
+echo Abrindo interface grafica do Geio DiskRadar v2.3.0...
+start "" "%PY_EXE%" %PY_ARGS% main.py
 echo [OK] Processo disparado com sucesso.
 exit /b 0
