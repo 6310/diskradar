@@ -20,6 +20,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Dict, List, Optional
 from urllib.parse import parse_qs, urlparse
 
+from core.classifier import FORENSIC_CATEGORY_PRIORITY
 from core.disk_info import (
     DiskBadgeInfo,
     fill_hardware_info,
@@ -329,6 +330,7 @@ class StitchBackendController:
         self.last_heartbeat: float = time.monotonic()
         self.has_connected: bool = False
         self.shutdown_requested: bool = False
+        self._is_querying_hw: bool = False
 
         # Carrega informações de hardware S.M.A.R.T. em background para inicialização instantânea
         threading.Thread(
@@ -342,6 +344,9 @@ class StitchBackendController:
         self._poller_thread.start()
 
     def _enrich_badge_hw_async(self, target_badge: DiskBadgeInfo) -> None:
+        if self._is_querying_hw:
+            return
+        self._is_querying_hw = True
         try:
             fill_hardware_info(target_badge)
             with self.lock:
@@ -352,6 +357,8 @@ class StitchBackendController:
                 )
         except Exception:
             pass
+        finally:
+            self._is_querying_hw = False
 
     def _append_log(self, tag: str, level: str, msg: str) -> None:
         ts = datetime.datetime.now().strftime("%H:%M:%S.%f")[:-3]
@@ -596,8 +603,26 @@ class StitchBackendController:
                 title="Salvar Catálogo de Autópsia HTML Read-Only",
             )
             root.destroy()
-        except Exception as exc:
-            return {"ok": False, "error": str(exc)}
+        except Exception:
+            pass
+
+        # Fallback PowerShell no Windows caso Tkinter não responda ou lance exceção
+        if not chosen and sys.platform == "win32":
+            try:
+                safe_def = default_name.replace("'", "")
+                ps_script = (
+                    "Add-Type -AssemblyName System.Windows.Forms; "
+                    "$f = New-Object System.Windows.Forms.SaveFileDialog; "
+                    "$f.Title = 'Salvar Catálogo de Autópsia HTML Read-Only'; "
+                    "$f.Filter = 'Relatório HTML (*.html)|*.html|Todos os arquivos (*.*)|*.*'; "
+                    f"$f.FileName = '{safe_def}'; "
+                    "if ($f.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $f.FileName }"
+                )
+                res = subprocess.run(["powershell", "-NoProfile", "-Command", ps_script], capture_output=True, text=True, timeout=120)
+                if res.returncode == 0 and res.stdout.strip():
+                    chosen = res.stdout.strip()
+            except Exception:
+                pass
 
         if chosen:
             with self.lock:
@@ -724,7 +749,16 @@ class StitchBackendController:
                 for h in hot_folders[:300]
             ]
 
-            # Serializa Arquivos Críticos / Agulhas no Palheiro
+            # Serializa Arquivos Críticos com priorização forense (Cripto/Senhas sempre no topo)
+            crit_sorted = sorted(
+                critical_items,
+                key=lambda c: (
+                    FORENSIC_CATEGORY_PRIORITY.get(c.category_key, 10),
+                    c.mtime,
+                    c.size_bytes,
+                ),
+                reverse=True,
+            )
             crit_serialized = [
                 {
                     "name": c.name,
@@ -738,7 +772,7 @@ class StitchBackendController:
                     "matched_reason": c.matched_reason,
                     "is_directory_batch": c.is_directory_batch,
                 }
-                for c in critical_items[:400]
+                for c in crit_sorted[:400]
             ]
 
             # Serializa Linha do Tempo Anual

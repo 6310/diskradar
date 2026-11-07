@@ -1219,12 +1219,38 @@ function showToast(msg) {
   }, 2600);
 }
 
+function fallbackCopy(text, msg) {
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.top = '-9999px';
+    ta.style.left = '-9999px';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    if (ok) {
+      showToast(msg || 'Copiado para a área de transferência!');
+    } else {
+      showToast('Copiado!');
+    }
+  } catch (err) {
+    showToast('Falha ao acessar área de transferência.');
+  }
+}
+
 function copyTextValue(val, toastMsg) {
   if (!val) return;
+  const msg = toastMsg || 'Copiado para a área de transferência!';
   if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(val).then(() => showToast(toastMsg || 'Copiado para a área de transferência!'));
+    navigator.clipboard.writeText(val)
+      .then(() => showToast(msg))
+      .catch(() => fallbackCopy(val, msg));
   } else {
-    showToast(toastMsg || 'Copiado!');
+    fallbackCopy(val, msg);
   }
 }
 
@@ -1294,7 +1320,10 @@ async function fetchState() {
 async function onDriveSelected(path) {
   if (!path) return;
   showToast('Carregando informações da unidade: ' + path);
-  await apiPost('/api/select_target', { path });
+  const r = await apiPost('/api/select_target', { path });
+  if (!r.ok) {
+    showToast('Aviso: ' + (r.error || 'Não foi possível carregar a unidade selecionada.'));
+  }
   await fetchState();
 }
 
@@ -1336,7 +1365,10 @@ async function stopScan() {
 async function openInExplorer(targetPath) {
   if (!targetPath) return;
   showToast('Abrindo no Explorer: ' + targetPath);
-  await apiPost('/api/open_explorer', { path: targetPath });
+  const r = await apiPost('/api/open_explorer', { path: targetPath });
+  if (!r.ok) {
+    showToast('Não foi possível abrir o Explorer para: ' + targetPath);
+  }
 }
 
 function renderAll() {
@@ -1374,14 +1406,29 @@ function renderAll() {
   document.getElementById('badge-nav-users').innerText = (b.detected_users || []).length;
   document.getElementById('badge-nav-err').innerText = r.errors_total || 0;
 
+  const startBtn = document.getElementById('btn-start-scan');
   const startBtnText = document.getElementById('btn-start-scan-text');
   const stopBtn = document.getElementById('btn-stop-scan');
   if (s.is_scanning) {
-    startBtnText.innerText = 'Varrendo...';
-    stopBtn.classList.remove('opacity-60');
+    if (startBtnText) startBtnText.innerText = 'Varrendo...';
+    if (startBtn) {
+      startBtn.disabled = true;
+      startBtn.classList.add('opacity-60', 'cursor-not-allowed');
+    }
+    if (stopBtn) {
+      stopBtn.disabled = false;
+      stopBtn.classList.remove('opacity-60', 'cursor-not-allowed');
+    }
   } else {
-    startBtnText.innerText = 'Iniciar Varredura';
-    stopBtn.classList.add('opacity-60');
+    if (startBtnText) startBtnText.innerText = 'Iniciar Varredura';
+    if (startBtn) {
+      startBtn.disabled = false;
+      startBtn.classList.remove('opacity-60', 'cursor-not-allowed');
+    }
+    if (stopBtn) {
+      stopBtn.disabled = true;
+      stopBtn.classList.add('opacity-60', 'cursor-not-allowed');
+    }
   }
 
   // 3. Crachá do Disco
@@ -1475,7 +1522,6 @@ function renderHotFolders() {
     else if (h.category === 'DOCS') badgeClass = 'bg-primary-container text-on-primary-container';
     else if (h.category === 'MISTO') badgeClass = 'bg-surface-bright text-primary';
 
-    const safeJsPath = escapeHtml(JSON.stringify(h.folder_path));
     return `
     <article class="bg-surface-container-low hover:bg-surface-container p-space-md rounded transition-colors flex flex-col lg:flex-row lg:items-center justify-between gap-space-md shadow-sm">
       <div class="flex items-start gap-space-md min-w-0 flex-1">
@@ -1500,10 +1546,10 @@ function renderHotFolders() {
           <span class="font-data-mono-sm text-data-mono-sm text-on-surface-variant">Modificado: ${escapeHtml(h.formatted_date)}</span>
         </div>
         <div class="flex items-center gap-space-xs">
-          <button onclick='copyTextValue(${safeJsPath}, "Caminho da pasta copiado!")' class="h-7 px-space-sm rounded bg-surface-container-high hover:bg-surface-variant text-on-surface-variant hover:text-primary flex items-center gap-1 font-body-sm text-body-sm" type="button">
+          <button onclick="copyTextValue(this.getAttribute('data-path'), 'Caminho da pasta copiado!')" data-path="${escapeHtml(h.folder_path)}" class="h-7 px-space-sm rounded bg-surface-container-high hover:bg-surface-variant text-on-surface-variant hover:text-primary flex items-center gap-1 font-body-sm text-body-sm" type="button">
             <span class="material-symbols-outlined text-[14px]">content_copy</span><span>Copiar</span>
           </button>
-          <button onclick='openInExplorer(${safeJsPath})' class="h-7 px-space-sm rounded bg-primary hover:bg-primary-container text-on-primary flex items-center gap-1 font-body-sm text-body-sm font-semibold shadow-sm" type="button">
+          <button onclick="openInExplorer(this.getAttribute('data-path'))" data-path="${escapeHtml(h.folder_path)}" class="h-7 px-space-sm rounded bg-primary hover:bg-primary-container text-on-primary flex items-center gap-1 font-body-sm text-body-sm font-semibold shadow-sm" type="button">
             <span class="material-symbols-outlined text-[15px]">folder_open</span><span>Explorar</span>
           </button>
         </div>
@@ -1564,8 +1610,6 @@ function renderCriticalItems() {
     const badgeCls = isCryptoOrKey
       ? 'bg-error-container text-on-error-container'
       : 'bg-surface-container-high text-primary';
-    const safeJsPath = escapeHtml(JSON.stringify(c.full_path));
-
     return `
     <article class="bg-surface-container-low hover:bg-surface-container p-space-sm rounded transition-all shadow-sm border-l-2 ${isCryptoOrKey ? 'border-error' : 'border-primary-fixed-dim'}">
       <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-space-sm">
@@ -1591,14 +1635,14 @@ function renderCriticalItems() {
         </div>
         <div class="flex lg:flex-col gap-space-xs shrink-0 items-end justify-start self-start pt-1">
           <div class="flex items-center gap-space-xs w-full">
-            <button onclick='openHexModal(${safeJsPath})' class="flex-1 h-7 px-space-sm bg-surface-container-high hover:bg-surface-variant text-secondary rounded flex items-center justify-center gap-1 text-body-sm font-body-sm font-semibold" title="Inspecionar Primeiros Bytes em Hex (Read-Only)" type="button">
+            <button onclick="openHexModal(this.getAttribute('data-path'))" data-path="${escapeHtml(c.full_path)}" class="flex-1 h-7 px-space-sm bg-surface-container-high hover:bg-surface-variant text-secondary rounded flex items-center justify-center gap-1 text-body-sm font-body-sm font-semibold" title="Inspecionar Primeiros Bytes em Hex (Read-Only)" type="button">
               <span class="material-symbols-outlined text-[14px]">biotech</span><span>Ver Hex</span>
             </button>
-            <button onclick='copyTextValue(${safeJsPath}, "Caminho copiado!")' class="flex-1 h-7 px-space-sm bg-surface-container-high hover:bg-surface-variant text-primary rounded flex items-center justify-center gap-1 text-body-sm font-body-sm" type="button">
+            <button onclick="copyTextValue(this.getAttribute('data-path'), 'Caminho copiado!')" data-path="${escapeHtml(c.full_path)}" class="flex-1 h-7 px-space-sm bg-surface-container-high hover:bg-surface-variant text-primary rounded flex items-center justify-center gap-1 text-body-sm font-body-sm" type="button">
               <span class="material-symbols-outlined text-[14px]">content_copy</span><span>Copiar</span>
             </button>
           </div>
-          <button onclick='openInExplorer(${safeJsPath})' class="w-full h-7 px-space-sm bg-secondary-container hover:bg-secondary text-on-secondary-container hover:text-on-secondary rounded flex items-center justify-center gap-space-xs text-body-sm font-body-sm font-bold" type="button">
+          <button onclick="openInExplorer(this.getAttribute('data-path'))" data-path="${escapeHtml(c.full_path)}" class="w-full h-7 px-space-sm bg-secondary-container hover:bg-secondary text-on-secondary-container hover:text-on-secondary rounded flex items-center justify-center gap-space-xs text-body-sm font-body-sm font-bold" type="button">
             <span class="material-symbols-outlined text-[14px]">folder_open</span>
             <span>Abrir no Explorer</span>
           </button>
@@ -1635,9 +1679,9 @@ function renderUsersTab() {
       ];
 
       const buttonsHtml = shortcutItems.map(item => {
-        const sPath = escapeHtml(JSON.stringify(item.path || u.profile_path));
+        const itemPath = item.path || u.profile_path;
         return `
-        <button onclick='openInExplorer(${sPath})' class="group flex items-center justify-between p-space-sm rounded bg-surface-container hover:bg-surface-container-high transition-colors text-left" type="button">
+        <button onclick="openInExplorer(this.getAttribute('data-path'))" data-path="${escapeHtml(itemPath)}" class="group flex items-center justify-between p-space-sm rounded bg-surface-container hover:bg-surface-container-high transition-colors text-left" type="button">
           <div class="flex items-center gap-space-sm min-w-0">
             <span class="material-symbols-outlined ${item.color} text-[18px]">${item.icon}</span>
             <div class="flex flex-col min-w-0">
@@ -1662,7 +1706,7 @@ function renderUsersTab() {
               <span class="font-data-mono-sm text-data-mono-sm text-on-surface-variant truncate">${escapeHtml(u.profile_path)}</span>
             </div>
           </div>
-          <button onclick='openInExplorer(${safeProfile})' class="flex items-center gap-1 px-space-sm py-1 rounded bg-primary hover:bg-primary-container text-on-primary font-headline-sm text-headline-sm font-bold" type="button">
+          <button onclick="openInExplorer(this.getAttribute('data-path'))" data-path="${escapeHtml(u.profile_path)}" class="flex items-center gap-1 px-space-sm py-1 rounded bg-primary hover:bg-primary-container text-on-primary font-headline-sm text-headline-sm font-bold" type="button">
             <span class="material-symbols-outlined text-[15px]">open_in_new</span>
             <span>Abrir Perfil</span>
           </button>
@@ -1674,7 +1718,6 @@ function renderUsersTab() {
 
   const gGrid = document.getElementById('global-dirs-grid');
   gGrid.innerHTML = globalDirs.map(g => {
-    const sPath = escapeHtml(JSON.stringify(g.path));
     return `
     <div class="flex flex-col justify-between bg-surface-container p-space-sm rounded hover:bg-surface-container-high transition-colors">
       <div class="flex items-start justify-between gap-space-xs mb-space-xs">
@@ -1685,7 +1728,7 @@ function renderUsersTab() {
         <span class="font-label-badge text-label-badge bg-surface-container-lowest text-secondary px-1 rounded">${escapeHtml(g.tag)}</span>
       </div>
       <div class="font-data-mono-sm text-data-mono-sm text-on-surface-variant truncate mb-space-sm">${escapeHtml(g.path)}</div>
-      <button onclick='openInExplorer(${sPath})' class="w-full flex items-center justify-center gap-1 py-1 rounded bg-surface-container-highest hover:bg-surface-bright text-on-surface font-body-sm text-body-sm" type="button">
+      <button onclick="openInExplorer(this.getAttribute('data-path'))" data-path="${escapeHtml(g.path)}" class="w-full flex items-center justify-center gap-1 py-1 rounded bg-surface-container-highest hover:bg-surface-bright text-on-surface font-body-sm text-body-sm" type="button">
         <span class="material-symbols-outlined text-[14px]">open_in_new</span>
         <span>Explorar Pasta</span>
       </button>
@@ -1790,7 +1833,6 @@ function renderErrorsTable() {
   }
 
   tbody.innerHTML = filtered.map(e => {
-    const safePath = escapeHtml(JSON.stringify(e.path));
     return `
     <tr class="hover:bg-surface-container transition-colors">
       <td class="px-space-md py-1.5 text-on-surface-variant whitespace-nowrap">${escapeHtml(e.timestamp)}</td>
@@ -1799,7 +1841,7 @@ function renderErrorsTable() {
       <td class="px-space-md py-1.5 text-on-surface font-semibold max-w-xs truncate" title="${escapeHtml(e.path)}">${escapeHtml(e.path)}</td>
       <td class="px-space-md py-1.5 text-on-surface-variant max-w-md truncate">${escapeHtml(e.message)}</td>
       <td class="px-space-md py-1.5 text-right whitespace-nowrap">
-        <button onclick='copyTextValue(${safePath}, "Caminho copiado!")' class="px-space-xs py-0.5 bg-surface-container-high hover:bg-surface-variant text-primary rounded text-[10px] font-label-caps uppercase" type="button">Copiar</button>
+        <button onclick="copyTextValue(this.getAttribute('data-path'), 'Caminho copiado!')" data-path="${escapeHtml(e.path)}" class="px-space-xs py-0.5 bg-surface-container-high hover:bg-surface-variant text-primary rounded text-[10px] font-label-caps uppercase" type="button">Copiar</button>
       </td>
     </tr>`;
   }).join('');
@@ -1858,6 +1900,7 @@ function renderLiveMonitor() {
   document.getElementById('live-err-sub').innerText = `${s.errors_count || 0} incidentes I/O`;
 
   const term = document.getElementById('live-terminal-stream');
+  const wasNearBottom = (term.scrollHeight - term.scrollTop - term.clientHeight) < 60;
   const logs = s.live_logs || [];
   term.innerHTML = logs.map(l => {
     let colorCls = 'text-on-surface-variant';
@@ -1871,7 +1914,9 @@ function renderLiveMonitor() {
         <span class="truncate">${escapeHtml(l.msg)}</span>
       </div>`;
   }).join('');
-  term.scrollTop = term.scrollHeight;
+  if (wasNearBottom || s.is_scanning) {
+    term.scrollTop = term.scrollHeight;
+  }
 
   const feed = document.getElementById('live-findings-feed');
   const crits = (r.critical_items || []).slice(0, 8);
@@ -1879,7 +1924,6 @@ function renderLiveMonitor() {
     feed.innerHTML = `<div class="p-space-md text-center text-on-surface-variant font-data-mono-sm">Nenhuma agulha crítica detectada até o momento.</div>`;
   } else {
     feed.innerHTML = crits.map(c => {
-      const safePath = escapeHtml(JSON.stringify(c.full_path));
       return `
       <div class="bg-surface-container rounded p-space-sm flex flex-col gap-1 border-l-2 border-error">
         <div class="flex items-center justify-between">
@@ -1889,8 +1933,8 @@ function renderLiveMonitor() {
         <div class="font-headline-sm text-headline-sm text-primary font-bold truncate">${escapeHtml(c.name)}</div>
         <div class="font-data-mono-sm text-data-mono-sm text-on-surface-variant truncate">${escapeHtml(c.full_path)}</div>
         <div class="flex items-center justify-end gap-space-xs pt-1">
-          <button onclick='openHexModal(${safePath})' class="px-space-xs py-0.5 rounded bg-primary-container text-on-primary-container font-label-caps text-label-caps font-bold" type="button">Ver Hex</button>
-          <button onclick='openInExplorer(${safePath})' class="px-space-xs py-0.5 rounded bg-surface-container-high text-on-surface font-label-caps text-label-caps" type="button">Explorer</button>
+          <button onclick="openHexModal(this.getAttribute('data-path'))" data-path="${escapeHtml(c.full_path)}" class="px-space-xs py-0.5 rounded bg-primary-container text-on-primary-container font-label-caps text-label-caps font-bold" type="button">Ver Hex</button>
+          <button onclick="openInExplorer(this.getAttribute('data-path'))" data-path="${escapeHtml(c.full_path)}" class="px-space-xs py-0.5 rounded bg-surface-container-high text-on-surface font-label-caps text-label-caps" type="button">Explorer</button>
         </div>
       </div>`;
     }).join('');
@@ -1915,7 +1959,6 @@ function renderExecutiveSummary() {
     topCrit.innerHTML = `<div class="p-space-md text-on-surface-variant font-data-mono-sm">Nenhum arquivo crítico catalogado ainda.</div>`;
   } else {
     topCrit.innerHTML = crits.map(c => {
-      const safePath = escapeHtml(JSON.stringify(c.full_path));
       return `
       <div class="bg-surface-container-lowest p-space-sm rounded flex items-center justify-between gap-space-sm">
         <div class="min-w-0 flex-1">
@@ -1926,8 +1969,8 @@ function renderExecutiveSummary() {
           <div class="font-data-mono-sm text-data-mono-sm text-on-surface-variant truncate mt-0.5">${escapeHtml(c.full_path)}</div>
         </div>
         <div class="flex items-center gap-1 shrink-0">
-          <button onclick='openHexModal(${safePath})' class="px-space-xs py-0.5 rounded bg-primary-container text-on-primary-container font-label-caps text-label-caps font-bold" type="button">Hex</button>
-          <button onclick='openInExplorer(${safePath})' class="px-space-xs py-0.5 rounded bg-surface-container-high text-secondary font-label-caps text-label-caps font-bold" type="button">Explorer</button>
+          <button onclick="openHexModal(this.getAttribute('data-path'))" data-path="${escapeHtml(c.full_path)}" class="px-space-xs py-0.5 rounded bg-primary-container text-on-primary-container font-label-caps text-label-caps font-bold" type="button">Hex</button>
+          <button onclick="openInExplorer(this.getAttribute('data-path'))" data-path="${escapeHtml(c.full_path)}" class="px-space-xs py-0.5 rounded bg-surface-container-high text-secondary font-label-caps text-label-caps font-bold" type="button">Explorer</button>
         </div>
       </div>`;
     }).join('');
@@ -1939,7 +1982,6 @@ function renderExecutiveSummary() {
     topHot.innerHTML = `<div class="p-space-md text-on-surface-variant font-data-mono-sm">Nenhuma pasta quente catalogada ainda.</div>`;
   } else {
     topHot.innerHTML = hots.map(h => {
-      const safePath = escapeHtml(JSON.stringify(h.folder_path));
       return `
       <div class="bg-surface-container-lowest p-space-sm rounded flex items-center justify-between gap-space-sm">
         <div class="min-w-0 flex-1">
@@ -1949,7 +1991,7 @@ function renderExecutiveSummary() {
           </div>
           <div class="text-[11px] text-on-surface-variant font-data-mono-sm">${h.photos_count} fotos • ${h.videos_count} vídeos • ${h.docs_count} docs</div>
         </div>
-        <button onclick='openInExplorer(${safePath})' class="px-space-xs py-0.5 rounded bg-surface-container-high text-primary font-label-caps text-label-caps" type="button">Abrir</button>
+        <button onclick="openInExplorer(this.getAttribute('data-path'))" data-path="${escapeHtml(h.folder_path)}" class="px-space-xs py-0.5 rounded bg-surface-container-high text-primary font-label-caps text-label-caps" type="button">Abrir</button>
       </div>`;
     }).join('');
   }
@@ -2125,8 +2167,23 @@ function copyHexDump() {
 }
 
 async function shutdownApp() {
+  showToast('Encerrando aplicação...');
   await apiPost('/api/app/shutdown');
-  window.close();
+  try {
+    window.close();
+  } catch (e) {}
+
+  // Fallback caso o navegador bloqueie window.close() em modo app
+  setTimeout(() => {
+    document.body.innerHTML = `
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background-color:#0c0e14;color:#e2e2eb;font-family:sans-serif;text-align:center;padding:24px;">
+        <div style="font-size:48px;margin-bottom:12px;">🔒</div>
+        <h2 style="font-size:22px;color:#00f0ff;margin:0 0 8px 0;font-weight:bold;">Geio DiskRadar // Sessão Encerrada com Segurança</h2>
+        <p style="font-size:14px;color:#849495;max-width:540px;line-height:1.5;">O motor forense Read-Only foi desativado. Todos os dados foram preservados e o disco pode ser desconectado da dock com segurança.</p>
+        <p style="font-size:13px;color:#4edea3;margin-top:18px;font-weight:600;">Você já pode fechar esta janela.</p>
+      </div>
+    `;
+  }, 450);
 }
 
 // Fechar modais com tecla ESC

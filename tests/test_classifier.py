@@ -56,6 +56,35 @@ class TestClassifier(unittest.TestCase):
         self.assertIn("2022", crit.formatted_date)
         self.assertEqual(crit.category_key, "CRYPTO_WALLETS")
 
+    def test_forensic_priority_ordering(self):
+        """Testa se carteiras antigas têm precedência sobre documentos recentes de menor relevância."""
+        from core.classifier import DiskClassifier
+
+        clf = DiskClassifier(root_path="/fake")
+        # Adiciona um XML recente de 2024
+        clf.process_file(
+            file_path="/fake/nfe/nota.xml",
+            file_name="nota.xml",
+            parent_dir="/fake/nfe",
+            size_bytes=5000,
+            mtime=1704067200.0,  # 2024
+        )
+        # Adiciona um wallet.dat antigo de 2013
+        clf.process_file(
+            file_path="/fake/wallets/wallet.dat",
+            file_name="wallet.dat",
+            parent_dir="/fake/wallets",
+            size_bytes=65536,
+            mtime=1356998400.0,  # 2013
+        )
+
+        critical = clf.get_all_critical_items()
+        self.assertEqual(len(critical), 2)
+        # O primeiro item DEVE ser o wallet.dat devido à prioridade forense máxima
+        self.assertEqual(critical[0].category_key, "CRYPTO_WALLETS")
+        self.assertEqual(critical[0].name, "wallet.dat")
+        self.assertEqual(critical[1].category_key, "IRPF_FISCAL")
+
     def test_year_activity_stats(self):
         """Testa resumo de atividades da linha do tempo forense."""
         stats = YearActivityStats(

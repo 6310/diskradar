@@ -40,6 +40,20 @@ from core.rules import (
 )
 
 
+# Pesos de Prioridade Forense para Triagem de Ativos (Cripto e Senhas sempre têm precedência)
+FORENSIC_CATEGORY_PRIORITY: Dict[str, int] = {
+    "CRYPTO_WALLETS": 100,
+    "BROWSERS_CREDS": 90,
+    "CERT_KEYS": 85,
+    "KEYWORDS": 75,
+    "DATABASE_ERP": 70,
+    "CAD_DESIGN": 60,
+    "EMAIL_MSG": 50,
+    "IRPF_FISCAL": 40,
+    "ARCHIVES": 30,
+}
+
+
 @dataclass(slots=True)
 class HotFolderItem:
     """Representa um diretório agrupado na Visão 1 ('Pastas Quentes')."""
@@ -619,7 +633,14 @@ class DiskClassifier:
                 )
             )
 
-        combined.sort(key=lambda x: (x.mtime, x.size_bytes), reverse=True)
+        combined.sort(
+            key=lambda x: (
+                FORENSIC_CATEGORY_PRIORITY.get(x.category_key, 10),
+                x.mtime,
+                x.size_bytes,
+            ),
+            reverse=True,
+        )
         return combined
 
     def get_catalog_entries(self) -> List[CatalogEntry]:
