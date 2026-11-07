@@ -458,6 +458,11 @@ class StitchBackendController:
                 self.scan_result = res
                 self.is_scanning = False
                 self.has_finished = True
+                self.scanned_files = res.scanned_files
+                self.scanned_dirs = res.scanned_dirs
+                self.hot_folders_count = len(res.hot_folders)
+                self.critical_count = len(res.critical_items)
+                self.errors_count = res.total_errors_count
                 self.was_cancelled = res.was_cancelled
                 self.scanned_files = res.scanned_files
                 self.scanned_dirs = res.scanned_dirs
@@ -961,6 +966,11 @@ class _StitchHTTPHandler(BaseHTTPRequestHandler):
             self._send_json(self.controller.get_state_dict())
             return
 
+        if parsed.path == "/api/system_diagnostics":
+            from core.diagnostics import run_system_diagnostics
+            self._send_json(run_system_diagnostics(self.controller.selected_path))
+            return
+
         self._send_json({"ok": False, "error": "Not found"}, status=404)
 
     def do_POST(self) -> None:
@@ -1058,6 +1068,13 @@ class _StitchHTTPHandler(BaseHTTPRequestHandler):
         self._send_json({"ok": False, "error": "Unknown endpoint"}, status=404)
 
 
+def _safe_which(name: str) -> Optional[str]:
+    try:
+        return shutil.which(name)
+    except Exception:
+        return None
+
+
 def _find_app_browser_binary() -> Optional[str]:
     """Localiza o binário do Microsoft Edge ou Google Chrome para abrir em modo App Nativo (--app)."""
     if sys.platform == "win32":
@@ -1073,12 +1090,12 @@ def _find_app_browser_binary() -> Optional[str]:
             if os.path.isfile(c):
                 return c
         for name in ("msedge.exe", "chrome.exe", "brave.exe"):
-            found = shutil.which(name)
+            found = _safe_which(name)
             if found:
                 return found
     else:
         for name in ("google-chrome", "chromium", "chromium-browser", "microsoft-edge", "brave-browser"):
-            found = shutil.which(name)
+            found = _safe_which(name)
             if found:
                 return found
     return None

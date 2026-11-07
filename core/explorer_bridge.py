@@ -15,7 +15,13 @@ Correções críticas para Windows 10/11:
 import os
 import subprocess
 import sys
+import threading
+import time
 from pathlib import Path
+
+_EXPLORER_LOCK = threading.Lock()
+_LAST_EXPLORER_TIME: float = 0.0
+_DEBOUNCE_SECONDS: float = 0.350
 
 
 def open_in_explorer(target_path: str, select_item: bool = True) -> bool:
@@ -24,10 +30,18 @@ def open_in_explorer(target_path: str, select_item: bool = True) -> bool:
     - Se for um diretório: abre a pasta diretamente.
     - Se for um arquivo e select_item=True: abre a pasta pai e destaca o arquivo (/select).
     - Se o arquivo não existir mais: abre a pasta pai onde ele estava.
+    Possui debounce de 350ms para evitar avalanche de janelas por múltiplos cliques.
     Retorna True se o comando foi disparado com sucesso, False caso contrário.
     """
     if not target_path:
         return False
+
+    global _LAST_EXPLORER_TIME
+    with _EXPLORER_LOCK:
+        now = time.monotonic()
+        if now - _LAST_EXPLORER_TIME < _DEBOUNCE_SECONDS:
+            return True
+        _LAST_EXPLORER_TIME = now
 
     try:
         if sys.platform == "win32":

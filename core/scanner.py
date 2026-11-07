@@ -16,7 +16,7 @@ import sys
 import threading
 import time
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from core.classifier import (
     CatalogEntry,
@@ -27,6 +27,11 @@ from core.classifier import (
     YearActivityStats,
 )
 from core.rules import DIR_BLOCKLIST, IGNORED_USERS, WEB3_EXTENSION_IDS
+
+
+MAX_DIR_DEPTH: int = 35
+CIRCUIT_BREAKER_MAX_ERRORS: int = 10
+MAX_LIVE_ERRORS: int = 2000
 
 
 def to_extended_path(path: str) -> str:
@@ -53,12 +58,14 @@ class ScanResult:
     """Resultado consolidado de uma varredura Read-Only (completa ou interrompida)."""
     root_path: str
     was_cancelled: bool = False
+    is_device_unplugged: bool = False
     elapsed_seconds: float = 0.0
     scanned_files: int = 0
     scanned_dirs: int = 0
     total_photos: int = 0
     total_videos: int = 0
     total_docs: int = 0
+    total_errors_count: int = 0
     hot_folders: List[HotFolderItem] = field(default_factory=list)
     critical_items: List[CriticalFileItem] = field(default_factory=list)
     catalog_entries: List[CatalogEntry] = field(default_factory=list)
@@ -79,6 +86,8 @@ class AsyncDiskScanner:
         self._stop_event = threading.Event()
         self._thread: Optional[threading.Thread] = None
         self.is_running: bool = False
+        self.is_device_unplugged: bool = False
+        self._total_errors_count: int = 0
         self._live_classifier: Optional[DiskClassifier] = None
         self._live_errors: List[ScanErrorEntry] = []
         self._live_files: int = 0
@@ -97,12 +106,14 @@ class AsyncDiskScanner:
         return ScanResult(
             root_path=self.target_path,
             was_cancelled=self._stop_event.is_set(),
+            is_device_unplugged=self.is_device_unplugged,
             elapsed_seconds=elapsed,
             scanned_files=self._live_files,
             scanned_dirs=self._live_dirs,
             total_photos=clf.total_Photos,
             total_videos=clf.total_Videos,
             total_docs=clf.total_Docs,
+            total_errors_count=self._total_errors_count,
             hot_folders=clf.get_sorted_hot_folders()[:200],
             critical_items=clf.get_all_critical_items()[:200],
             catalog_entries=[],
@@ -166,16 +177,18 @@ class AsyncDiskScanner:
         })
 
         # ======================================================================
-        # FASE 1: VARREDURA GERAL READ-ONLY COM PROTEÇÃO CONTRA JUNCTIONS E MAX_PATH
+        # FASE 1: VARREDURA GERAL READ-ONLY COM PROTEÇÃO ANTI-TRAVAMENTO
+        # (Circuit Breaker, Pacing de I/O, Teto de Profundidade MAX_DIR_DEPTH)
         # ======================================================================
-        # Utiliza o prefixo estendido \\?\ no Windows para não quebrar em pastas >260 chars
         root_extended = to_extended_path(self.target_path)
-        dir_stack: List[str] = [root_extended]
+        dir_stack: List[Tuple[str, int]] = [(root_extended, 0)]
 
         while dir_stack and not self._stop_event.is_set():
-            current_dir = dir_stack.pop()
+            current_dir, depth = dir_stack.pop()
             scanned_dirs += 1
             self._live_dirs = scanned_dirs
+            folder_io_errors = 0
+            is_folder_circuit_broken = False
 
             now = time.monotonic()
             if now - last_ui_update >= 0.18:
@@ -189,7 +202,7 @@ class AsyncDiskScanner:
                     "scanned_dirs": scanned_dirs,
                     "hot_folders_count": len(classifier._hot_folders),
                     "critical_count": classifier.total_Critical,
-                    "errors_count": len(errors),
+                    "errors_count": self._total_errors_count,
                     "elapsed": now - start_time,
                 })
 
@@ -197,16 +210,26 @@ class AsyncDiskScanner:
                 scandir_iter = os.scandir(current_dir)
             except (PermissionError, FileNotFoundError, OSError) as exc:
                 self._record_error(errors, strip_extended_prefix(current_dir), exc)
+                if self._is_surprise_unplug(exc):
+                    self._handle_unplug(errors, current_dir)
+                    break
                 continue
 
             with scandir_iter as entries:
-                while not self._stop_event.is_set():
+                while not self._stop_event.is_set() and not is_folder_circuit_broken:
                     try:
                         entry = next(entries)
                     except StopIteration:
                         break
                     except (PermissionError, FileNotFoundError, OSError) as exc:
+                        folder_io_errors += 1
                         self._record_error(errors, strip_extended_prefix(current_dir), exc)
+                        if self._is_surprise_unplug(exc):
+                            self._handle_unplug(errors, current_dir)
+                            break
+                        if folder_io_errors >= CIRCUIT_BREAKER_MAX_ERRORS:
+                            is_folder_circuit_broken = True
+                            self._record_circuit_breaker(errors, current_dir)
                         break
 
                     try:
@@ -217,15 +240,20 @@ class AsyncDiskScanner:
                         try:
                             is_dir = entry.is_dir(follow_symlinks=False)
                             is_symlink = entry.is_symlink()
-                        except OSError:
+                        except OSError as exc:
+                            folder_io_errors += 1
+                            if folder_io_errors >= CIRCUIT_BREAKER_MAX_ERRORS:
+                                is_folder_circuit_broken = True
+                                self._record_circuit_breaker(errors, current_dir)
                             continue
 
                         # BLINDAGEM WINDOWS: Bloqueia Reparse Points / Junctions (ex: Application Data)
-                        # evitando loops infinitos de recursão profunda!
+                        # e teto de profundidade (MAX_DIR_DEPTH), evitando loops infinitos!
                         if is_dir and not is_symlink:
                             if entry_name_lower in DIR_BLOCKLIST:
                                 continue
-                            dir_stack.append(entry.path)
+                            if depth + 1 <= MAX_DIR_DEPTH:
+                                dir_stack.append((entry.path, depth + 1))
                         elif entry.is_file(follow_symlinks=False):
                             scanned_files += 1
                             self._live_files = scanned_files
@@ -242,6 +270,10 @@ class AsyncDiskScanner:
                                 mtime=st.st_mtime,
                             )
 
+                            # Pacing cooperativo anti-travamento de máquina: 1ms a cada 1.000 nós
+                            if scanned_files % 1000 == 0:
+                                time.sleep(0.001)
+
                             if scanned_files % 1200 == 0:
                                 now_inner = time.monotonic()
                                 if now_inner - last_ui_update >= 0.18:
@@ -254,12 +286,20 @@ class AsyncDiskScanner:
                                         "scanned_dirs": scanned_dirs,
                                         "hot_folders_count": len(classifier._hot_folders),
                                         "critical_count": classifier.total_Critical,
-                                        "errors_count": len(errors),
+                                        "errors_count": self._total_errors_count,
                                         "elapsed": now_inner - start_time,
                                     })
                     except (PermissionError, FileNotFoundError, OSError) as exc:
+                        folder_io_errors += 1
                         err_path = getattr(entry, "path", current_dir)
                         self._record_error(errors, strip_extended_prefix(err_path), exc)
+                        if self._is_surprise_unplug(exc):
+                            self._handle_unplug(errors, current_dir)
+                            break
+                        if folder_io_errors >= CIRCUIT_BREAKER_MAX_ERRORS:
+                            is_folder_circuit_broken = True
+                            self._record_circuit_breaker(errors, current_dir)
+                            break
                         continue
 
         elapsed = time.monotonic() - start_time
@@ -272,12 +312,14 @@ class AsyncDiskScanner:
         result = ScanResult(
             root_path=self.target_path,
             was_cancelled=self._stop_event.is_set(),
+            is_device_unplugged=self.is_device_unplugged,
             elapsed_seconds=elapsed,
             scanned_files=scanned_files,
             scanned_dirs=scanned_dirs,
             total_photos=classifier.total_Photos,
             total_videos=classifier.total_Videos,
             total_docs=classifier.total_Docs,
+            total_errors_count=self._total_errors_count,
             hot_folders=classifier.get_sorted_hot_folders(),
             critical_items=classifier.get_all_critical_items(),
             catalog_entries=classifier.get_catalog_entries(),
@@ -321,15 +363,16 @@ class AsyncDiskScanner:
             if not os.path.isdir(u_dir):
                 continue
             try:
-                for entry in os.scandir(u_dir):
-                    try:
-                        # Bloqueia junctions em Users (ex: Default User junction)
-                        if entry.is_dir(follow_symlinks=False) and not entry.is_symlink():
-                            uname = entry.name.lower()
-                            if uname not in IGNORED_USERS and not uname.startswith("."):
-                                user_profiles.append(entry.path)
-                    except OSError:
-                        continue
+                with os.scandir(u_dir) as entries:
+                    for entry in entries:
+                        try:
+                            # Bloqueia junctions em Users (ex: Default User junction)
+                            if entry.is_dir(follow_symlinks=False) and not entry.is_symlink():
+                                uname = entry.name.lower()
+                                if uname not in IGNORED_USERS and not uname.startswith("."):
+                                    user_profiles.append(entry.path)
+                        except OSError:
+                            continue
             except OSError:
                 continue
 
@@ -362,9 +405,10 @@ class AsyncDiskScanner:
 
             profile_dirs = ["Default"]
             try:
-                for entry in os.scandir(b_user_data):
-                    if entry.is_dir(follow_symlinks=False) and not entry.is_symlink() and entry.name.startswith("Profile "):
-                        profile_dirs.append(entry.name)
+                with os.scandir(b_user_data) as entries:
+                    for entry in entries:
+                        if entry.is_dir(follow_symlinks=False) and not entry.is_symlink() and entry.name.startswith("Profile "):
+                            profile_dirs.append(entry.name)
             except OSError:
                 pass
 
@@ -399,21 +443,22 @@ class AsyncDiskScanner:
                 ext_settings_dir = os.path.join(p_full, "Local Extension Settings")
                 if os.path.isdir(ext_settings_dir):
                     try:
-                        for ext_entry in os.scandir(ext_settings_dir):
-                            if ext_entry.is_dir(follow_symlinks=False) and not ext_entry.is_symlink():
-                                ext_id = ext_entry.name.lower()
-                                if ext_id in WEB3_EXTENSION_IDS:
-                                    vault_name = WEB3_EXTENSION_IDS[ext_id]
-                                    st = ext_entry.stat(follow_symlinks=False)
-                                    classifier.add_targeted_critical_item(
-                                        name=f"{vault_name} ({b_name} - {username})",
-                                        full_path=ext_entry.path,
-                                        category_key="CRYPTO_WALLETS",
-                                        tag_label=f"[{vault_name}]",
-                                        size_bytes=st.st_size,
-                                        mtime=st.st_mtime,
-                                        matched_reason=f"Cofre de extensão Web3 detectado em {b_name}",
-                                    )
+                        with os.scandir(ext_settings_dir) as ext_entries:
+                            for ext_entry in ext_entries:
+                                if ext_entry.is_dir(follow_symlinks=False) and not ext_entry.is_symlink():
+                                    ext_id = ext_entry.name.lower()
+                                    if ext_id in WEB3_EXTENSION_IDS:
+                                        vault_name = WEB3_EXTENSION_IDS[ext_id]
+                                        st = ext_entry.stat(follow_symlinks=False)
+                                        classifier.add_targeted_critical_item(
+                                            name=f"{vault_name} ({b_name} - {username})",
+                                            full_path=ext_entry.path,
+                                            category_key="CRYPTO_WALLETS",
+                                            tag_label=f"[{vault_name}]",
+                                            size_bytes=st.st_size,
+                                            mtime=st.st_mtime,
+                                            matched_reason=f"Cofre de extensão Web3 detectado em {b_name}",
+                                        )
                     except OSError:
                         pass
 
@@ -455,29 +500,30 @@ class AsyncDiskScanner:
             if not os.path.isdir(profiles_dir):
                 continue
             try:
-                for entry in os.scandir(profiles_dir):
-                    if entry.is_dir(follow_symlinks=False) and not entry.is_symlink():
-                        p_dir = entry.path
-                        for f_name, tag_suffix in [
-                            ("logins.json", "Senhas"),
-                            ("key4.db", "Chave Mestra"),
-                            ("places.sqlite", "Favoritos/Histórico"),
-                        ]:
-                            target_f = os.path.join(p_dir, f_name)
-                            if os.path.isfile(target_f):
-                                try:
-                                    st = os.stat(target_f)
-                                    classifier.add_targeted_critical_item(
-                                        name=f"{app_name} ({username}) - {f_name}",
-                                        full_path=target_f,
-                                        category_key="BROWSERS_CREDS",
-                                        tag_label=f"[{app_name} {tag_suffix}]",
-                                        size_bytes=st.st_size,
-                                        mtime=st.st_mtime,
-                                        matched_reason=f"Dados de perfil do {app_name}",
-                                    )
-                                except OSError as exc:
-                                    self._record_error(errors, target_f, exc)
+                with os.scandir(profiles_dir) as prof_entries:
+                    for entry in prof_entries:
+                        if entry.is_dir(follow_symlinks=False) and not entry.is_symlink():
+                            p_dir = entry.path
+                            for f_name, tag_suffix in [
+                                ("logins.json", "Senhas"),
+                                ("key4.db", "Chave Mestra"),
+                                ("places.sqlite", "Favoritos/Histórico"),
+                            ]:
+                                target_f = os.path.join(p_dir, f_name)
+                                if os.path.isfile(target_f):
+                                    try:
+                                        st = os.stat(target_f)
+                                        classifier.add_targeted_critical_item(
+                                            name=f"{app_name} ({username}) - {f_name}",
+                                            full_path=target_f,
+                                            category_key="BROWSERS_CREDS",
+                                            tag_label=f"[{app_name} {tag_suffix}]",
+                                            size_bytes=st.st_size,
+                                            mtime=st.st_mtime,
+                                            matched_reason=f"Dados de perfil do {app_name}",
+                                        )
+                                    except OSError as exc:
+                                        self._record_error(errors, target_f, exc)
             except OSError:
                 pass
 
@@ -494,7 +540,7 @@ class AsyncDiskScanner:
                 try:
                     st = os.stat(c_path)
                     classifier.add_targeted_critical_item(
-                        name=f"{w_label} ({username})",
+                        name=f"{w_label} ({username}) - {os.path.basename(c_path)}",
                         full_path=c_path,
                         category_key="CRYPTO_WALLETS",
                         tag_label="[Cripto Wallet]",
@@ -511,18 +557,19 @@ class AsyncDiskScanner:
         ]:
             if os.path.isdir(el_dir):
                 try:
-                    for entry in os.scandir(el_dir):
-                        if entry.is_file(follow_symlinks=False):
-                            st = entry.stat(follow_symlinks=False)
-                            classifier.add_targeted_critical_item(
-                                name=f"Electrum Wallet ({username}) - {entry.name}",
-                                full_path=entry.path,
-                                category_key="CRYPTO_WALLETS",
-                                tag_label="[Electrum Wallet]",
-                                size_bytes=st.st_size,
-                                mtime=st.st_mtime,
-                                matched_reason=f"Arquivo de carteira Electrum de {username}",
-                            )
+                    with os.scandir(el_dir) as entries:
+                        for entry in entries:
+                            if entry.is_file(follow_symlinks=False):
+                                st = entry.stat(follow_symlinks=False)
+                                classifier.add_targeted_critical_item(
+                                    name=f"Electrum Wallet ({username}) - {entry.name}",
+                                    full_path=entry.path,
+                                    category_key="CRYPTO_WALLETS",
+                                    tag_label="[Electrum Wallet]",
+                                    size_bytes=st.st_size,
+                                    mtime=st.st_mtime,
+                                    matched_reason=f"Arquivo de carteira Electrum de {username}",
+                                )
                 except OSError:
                     pass
 
@@ -538,18 +585,19 @@ class AsyncDiskScanner:
         for w_app, w_folder, w_tag in multi_wallet_folders:
             if os.path.isdir(w_folder):
                 try:
-                    for entry in os.scandir(w_folder):
-                        if entry.is_file(follow_symlinks=False):
-                            st = entry.stat(follow_symlinks=False)
-                            classifier.add_targeted_critical_item(
-                                name=f"{w_app} ({username}) - {entry.name}",
-                                full_path=entry.path,
-                                category_key="CRYPTO_WALLETS",
-                                tag_label=w_tag,
-                                size_bytes=st.st_size,
-                                mtime=st.st_mtime,
-                                matched_reason=f"Arquivo de carteira {w_app} de {username}",
-                            )
+                    with os.scandir(w_folder) as entries:
+                        for entry in entries:
+                            if entry.is_file(follow_symlinks=False):
+                                st = entry.stat(follow_symlinks=False)
+                                classifier.add_targeted_critical_item(
+                                    name=f"{w_app} ({username}) - {entry.name}",
+                                    full_path=entry.path,
+                                    category_key="CRYPTO_WALLETS",
+                                    tag_label=w_tag,
+                                    size_bytes=st.st_size,
+                                    mtime=st.st_mtime,
+                                    matched_reason=f"Arquivo de carteira {w_app} de {username}",
+                                )
                 except OSError:
                     pass
 
@@ -578,30 +626,57 @@ class AsyncDiskScanner:
         eth_keystore_dir = os.path.join(appdata_roaming, "Ethereum", "keystore")
         if os.path.isdir(eth_keystore_dir):
             try:
-                for entry in os.scandir(eth_keystore_dir):
-                    if entry.is_file(follow_symlinks=False):
-                        st = entry.stat(follow_symlinks=False)
-                        classifier.add_targeted_critical_item(
-                            name=f"Ethereum Keystore ({username}) - {entry.name}",
-                            full_path=entry.path,
-                            category_key="CRYPTO_WALLETS",
-                            tag_label="[Keystore ETH]",
-                            size_bytes=st.st_size,
-                            mtime=st.st_mtime,
-                            matched_reason="Keystore UTC de Ethereum",
-                        )
+                with os.scandir(eth_keystore_dir) as entries:
+                    for entry in entries:
+                        if entry.is_file(follow_symlinks=False):
+                            st = entry.stat(follow_symlinks=False)
+                            classifier.add_targeted_critical_item(
+                                name=f"Ethereum Keystore ({username}) - {entry.name}",
+                                full_path=entry.path,
+                                category_key="CRYPTO_WALLETS",
+                                tag_label="[Keystore ETH]",
+                                size_bytes=st.st_size,
+                                mtime=st.st_mtime,
+                                matched_reason="Keystore UTC de Ethereum",
+                            )
             except OSError:
                 pass
 
-    @staticmethod
-    def _record_error(errors: List[ScanErrorEntry], path: str, exc: BaseException) -> None:
-        """Registra erro de leitura / permissão / possível bad block sem interromper a varredura."""
+    def _is_surprise_unplug(self, exc: BaseException) -> bool:
+        """Identifica desconexão abrupta de hardware USB/SATA."""
+        winerror = getattr(exc, "winerror", None)
+        if winerror in (21, 1167, 433):  # ERROR_NOT_READY, ERROR_DEVICE_NOT_CONNECTED, ERROR_DEVICE_UNREACHABLE
+            return True
+        msg = str(exc).lower()
+        if "device not ready" in msg or "device is not connected" in msg or "device unreachable" in msg:
+            return True
+        return False
+
+    def _handle_unplug(self, errors: List[ScanErrorEntry], path: str) -> None:
+        """Trata desconexão abrupta com segurança e preservação de achados."""
+        self.is_device_unplugged = True
+        self._record_error(errors, path, OSError(1167, "[DESCONEXÃO ABRUPTA] O dispositivo de armazenamento foi desconectado pelo hardware."))
+        self.event_queue.put({
+            "type": "DEVICE_UNPLUGGED",
+            "path": strip_extended_prefix(path),
+            "message": "Dispositivo removido ou desconectado durante a varredura.",
+        })
+        self._stop_event.set()
+
+    def _record_circuit_breaker(self, errors: List[ScanErrorEntry], folder_path: str) -> None:
+        """Desarma o circuito para uma subpasta repleta de erros físicos de hardware."""
+        clean = strip_extended_prefix(folder_path)
+        self._record_error(errors, clean, OSError(1117, f"[CIRCUIT BREAKER] Subpasta isolada e ignorada após {CIRCUIT_BREAKER_MAX_ERRORS} erros consecutivos de hardware/I/O."))
+
+    def _record_error(self, errors: List[ScanErrorEntry], path: str, exc: BaseException) -> None:
+        """Registra erro sem vazar memória RAM, limitando o catálogo em memória e isolando Bad Blocks."""
+        self._total_errors_count += 1
         err_type = type(exc).__name__
         winerror = getattr(exc, "winerror", None)
         errno_val = getattr(exc, "errno", None)
 
         details = str(exc)
-        if winerror in (23, 1117) or errno_val == 5:
+        if winerror in (23, 1117) or errno_val == 5 or "[CIRCUIT BREAKER]" in details:
             err_type = f"BAD BLOCK / ERRO FÍSICO I/O ({err_type})"
 
         errors.append(
@@ -612,3 +687,5 @@ class AsyncDiskScanner:
                 timestamp=datetime.datetime.now().strftime("%H:%M:%S"),
             )
         )
+        if len(errors) > MAX_LIVE_ERRORS:
+            errors.pop(0)

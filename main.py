@@ -36,6 +36,16 @@ if sys.platform == "win32":
 
         # 2. Define identificador de processo para ícone independente na Barra de Tarefas
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("geio.diskradar.app.2.2.0")
+
+        # 3. Otimização Anti-Travamento: Rebaixa prioridade de I/O e CPU para segundo plano no kernel NT
+        # Garante que o Windows, mouse, Explorer e outros apps continuem 100% responsivos mesmo com HD morrendo
+        try:
+            handle = ctypes.windll.kernel32.GetCurrentProcess()
+            # Tenta ativar PROCESS_MODE_BACKGROUND_BEGIN (0x00100000) ou fallback BELOW_NORMAL (0x00004000)
+            if not ctypes.windll.kernel32.SetPriorityClass(handle, 0x00100000):
+                ctypes.windll.kernel32.SetPriorityClass(handle, 0x00004000)
+        except Exception:
+            pass
     except Exception:
         pass
 
