@@ -268,6 +268,46 @@ class TestInstallerAndVersioning(unittest.TestCase):
         self.assertIn("pyinstaller", content)
         self.assertIn("Geio-DiskRadar-Windows-Installer", content)
 
+    def test_11_installer_unicode_and_accented_paths(self):
+        """Valida instalação em pastas com caracteres especiais, acentuação e espaços (pt-BR)."""
+        temp_src = os.path.join(self.temp_dir, "Fonte - DiskRadar Espaços & Acentos")
+        temp_dst = os.path.join(self.temp_dir, "Instalação - João & Conceição")
+
+        os.makedirs(os.path.join(temp_src, "core"), exist_ok=True)
+        os.makedirs(os.path.join(temp_src, "ui", "assets", "vendor"), exist_ok=True)
+        with open(os.path.join(temp_src, "main.py"), "w", encoding="utf-8") as f:
+            f.write("# código em pt-br: coração e ação\n")
+        with open(os.path.join(temp_src, "core", "módulo_teste.py"), "w", encoding="utf-8") as f:
+            f.write('x = "teste forense"\n')
+        with open(os.path.join(temp_src, "version.json"), "w", encoding="utf-8") as f:
+            json.dump({"version": "2.3.0", "app_id": APP_GUID}, f)
+
+        res = install_or_upgrade_local(source_dir=temp_src, target_dir=temp_dst, create_shortcuts=False)
+        self.assertTrue(res["ok"])
+        self.assertTrue(os.path.isfile(os.path.join(temp_dst, "core", "módulo_teste.py")))
+
+        # Valida integridade do manifesto
+        with open(os.path.join(temp_dst, "install_manifest.json"), "r", encoding="utf-8") as f:
+            m = json.load(f)
+        self.assertIn("core/módulo_teste.py", m["files"])
+
+    def test_12_installer_vendor_assets_packaging(self):
+        """Valida que todos os recursos offline (Tailwind e Material Symbols) são empacotados pelo instalador."""
+        from core.installer import _collect_project_files, get_project_root
+
+        root = get_project_root()
+        files = _collect_project_files(root)
+        normalized = [f.replace("\\", "/") for f in files]
+
+        self.assertIn("ui/assets/vendor/tailwind.min.js", normalized)
+        self.assertIn("ui/assets/vendor/materialsymbols.ttf", normalized)
+
+        # Valida que os arquivos em disco têm tamanho compatível
+        tw_path = os.path.join(root, "ui", "assets", "vendor", "tailwind.min.js")
+        font_path = os.path.join(root, "ui", "assets", "vendor", "materialsymbols.ttf")
+        self.assertGreater(os.path.getsize(tw_path), 100_000)
+        self.assertGreater(os.path.getsize(font_path), 500_000)
+
 
 if __name__ == "__main__":
     unittest.main()
