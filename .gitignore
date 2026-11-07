@@ -1,15 +1,70 @@
-# Python
+# ==============================================================================
+# GitIgnore Estratégico - Geio DiskRadar
+# ==============================================================================
+
+# Byte-compiled / optimized / C extensions
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
-env/
-venv/
-ENV/
 
-# Build outputs
+# Ambientes Virtuais
+venv/
+env/
+ENV/
+.venv/
+env.bak/
+venv.bak/
+
+# Logs e depuração
+*.log
+compilacao.log
+execucao.log
+
+# Segredos, chaves e variáveis de ambiente
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+
+# Bancos de dados e uploads locais
+*.db
+*.sqlite
+*.sqlite3
+
+# Saídas de compilação e empacotamento PyInstaller
 build/
 dist/
 *.spec
 *.exe
+
+# Arquivos compactados e entregáveis locais
+*.zip
+*.tar.gz
+*.7z
+
+# Relatórios HTML gerados por testes locais (não versionar relatórios de discos reais)
+Relatorio_*.html
+
+# IDEs e Editores
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+*~
+
+# Sistema Operacional
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Testes e Cobertura
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
