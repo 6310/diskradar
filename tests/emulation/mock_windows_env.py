@@ -157,6 +157,21 @@ def patch_windows_environment():
     global CAPTURED_EXPLORER_CALLS
     CAPTURED_EXPLORER_CALLS.clear()
 
+    # Previne NameError no ssl do Python 3.13 em Linux quando sys.platform='win32'
+    try:
+        import ssl
+        if not hasattr(ssl, "enum_certificates"):
+            ssl.enum_certificates = lambda *a, **k: []
+        if not hasattr(ssl, "enum_crls"):
+            ssl.enum_crls = lambda *a, **k: []
+        import _ssl
+        if not hasattr(_ssl, "enum_certificates"):
+            _ssl.enum_certificates = lambda *a, **k: []
+        if not hasattr(_ssl, "enum_crls"):
+            _ssl.enum_crls = lambda *a, **k: []
+    except Exception:
+        pass
+
     orig_popen = subprocess.Popen
     orig_run = subprocess.run
 

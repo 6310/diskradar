@@ -21,10 +21,30 @@ def build_synthetic_windows_disk(base_dir: str) -> Dict[str, str]:
     prog_dir = os.path.join(base_dir, "Program Files", "Common Files")
     progdata_dir = os.path.join(base_dir, "ProgramData", "Microsoft")
     recycle_dir = os.path.join(base_dir, "$Recycle.Bin", "S-1-5-21-998877")
-    for d in (win_dir, prog_dir, progdata_dir, recycle_dir):
+    for d in (win_dir, prog_dir, progdata_dir):
         os.makedirs(d, exist_ok=True)
         with open(os.path.join(d, "system_dummy.dll"), "wb") as f:
             f.write(b"MZ\x90\x00\x03\x00\x00\x00" + b"\x00" * 200)
+
+    # 1.1 Criação de artefatos apagados no $Recycle.Bin ($I / $R)
+    os.makedirs(recycle_dir, exist_ok=True)
+    import struct
+    deleted_payload = b"CONTEUDO_DO_CONTRATO_EXCLUIDO_NA_LIXEIRA_2026"
+    r_file = os.path.join(recycle_dir, "$R789ABC.docx")
+    with open(r_file, "wb") as f:
+        f.write(deleted_payload)
+
+    orig_del_path = r"C:\Users\Geio\Documents\Contrato_Sigiloso_2026.docx"
+    orig_del_bytes = orig_del_path.encode("utf-16-le")
+    i_bytes = bytearray(28 + len(orig_del_bytes))
+    struct.pack_into("<Q", i_bytes, 0, 2)  # Version 2
+    struct.pack_into("<Q", i_bytes, 8, len(deleted_payload))
+    struct.pack_into("<Q", i_bytes, 16, 133450000000000000)
+    struct.pack_into("<I", i_bytes, 24, len(orig_del_path))
+    i_bytes[28 : 28 + len(orig_del_bytes)] = orig_del_bytes
+    i_file = os.path.join(recycle_dir, "$I789ABC.docx")
+    with open(i_file, "wb") as f:
+        f.write(i_bytes)
 
     # 2. Perfil de Usuário Windows: "Geio"
     user_dir = os.path.join(base_dir, "Users", "Geio")
@@ -138,4 +158,6 @@ def build_synthetic_windows_disk(base_dir: str) -> Dict[str, str]:
         "bad_io": bad_io_file,
         "bad_crc": bad_crc_file,
         "dead_folder": dead_folder,
+        "deleted_doc": orig_del_path,
+        "deleted_r": r_file,
     }

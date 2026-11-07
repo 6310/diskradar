@@ -113,7 +113,7 @@ def run_emulation():
         print(f"      - SHA-256 Parcial: {hex_res.partial_sha256[:24]}...")
         print(f"      - Entropia de Shannon: {hex_res.entropy} ({hex_res.entropy_label})\n")
 
-        print("\033[1;33m[6/7] Validando Extração Forense de Evidências com Hash SHA-256...\033[0m")
+        print("\033[1;33m[6/8] Validando Extração Forense de Evidências com Hash SHA-256...\033[0m")
         evi_dir = os.path.join(temp_root, "Evidencias_Extraidas")
         evi_res = export_evidence_file(disk_info["seed_en"], destination_dir=evi_dir)
         print(f"      - Arquivo: {evi_res['file_name']}")
@@ -121,7 +121,37 @@ def run_emulation():
         print(f"      - Destino: {evi_res['dest_path']}")
         print(f"      - Manifesto de Custódia: {evi_res['manifest_path']}\n")
 
-        print("\033[1;33m[7/7] Capturando Telas com Navegador Headless (Windows 10 / Edge User-Agent)...\033[0m")
+        print("\033[1;33m[7/8] Validando Modo 'Arquivos Apagados Rápidos' (/api/quick_deleted_scan - Sem Deep Scan)...\033[0m")
+        req_del = urllib.request.Request(
+            f"{url}/api/quick_deleted_scan",
+            data=json.dumps({"path": temp_root}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req_del, timeout=5) as resp:
+            del_body = json.loads(resp.read().decode("utf-8"))
+
+        print(f"      - Status da Resposta: \033[1;32mOK={del_body['ok']}\033[0m (Tempo de leitura: {del_body['elapsed_ms']}ms)")
+        print(f"      - Total de Arquivos Apagados Mapeados: {del_body['total_found']}")
+        print(f"      - 100% Recuperáveis: \033[1;32m{del_body['recoverable_count']}\033[0m")
+
+        recovered_del_sha = "N/A"
+        if del_body["entries"]:
+            first_del = del_body["entries"][0]
+            print(f"      - Primeiro item: {first_del['name']} ({first_del['formatted_size']}) • Origem: {first_del['source_badge']}")
+            # Testa recuperação via API
+            req_rec = urllib.request.Request(
+                f"{url}/api/recover_deleted_file",
+                data=json.dumps({"entry_id": first_del["entry_id"]}).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+            )
+            with urllib.request.urlopen(req_rec, timeout=5) as r_resp:
+                rec_body = json.loads(r_resp.read().decode("utf-8"))
+            if rec_body.get("ok"):
+                recovered_del_sha = rec_body["sha256"]
+                print(f"      - \033[1;32m✓ Arquivo Apagado Reconstruído:\033[0m {rec_body['dest_path']}")
+                print(f"      - Hash SHA-256 Validado: \033[1;32m{rec_body['sha256']}\033[0m\n")
+
+        print("\033[1;33m[8/8] Capturando Telas com Navegador Headless (Windows 10 / Edge User-Agent)...\033[0m")
         ss_path = os.path.join(screenshots_dir, "01_dashboard_windows_edge.png")
         firefox_bin = None
         for cand in ("/usr/bin/firefox", "/usr/bin/firefox-esr", "firefox", "firefox-esr"):

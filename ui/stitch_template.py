@@ -221,6 +221,10 @@ tailwind.config = {
         <span class="material-symbols-outlined text-[16px]">play_arrow</span>
         <span id="btn-start-scan-text">Iniciar Varredura</span>
       </button>
+      <button id="btn-quick-deleted" onclick="triggerQuickDeletedScan()" class="flex items-center gap-space-xs px-space-md py-1.5 rounded bg-primary-container/20 hover:bg-primary-container text-primary-fixed hover:text-on-primary transition-colors font-headline-sm text-headline-sm font-bold border border-primary/40 shadow-[0_0_8px_rgba(0,240,255,0.2)]" title="Varredura Instantânea de Arquivos Apagados na $MFT e $Recycle.Bin (Sem Deep Scan)" type="button">
+        <span class="material-symbols-outlined text-[16px]">restore_from_trash</span>
+        <span id="btn-quick-deleted-text">⚡ Apagados (Rápido)</span>
+      </button>
       <button id="btn-stop-scan" onclick="stopScan()" class="flex items-center gap-space-xs px-space-md py-1.5 rounded bg-error-container hover:bg-error text-on-error-container hover:text-on-error transition-colors font-headline-sm text-headline-sm font-semibold opacity-60" type="button">
         <span class="material-symbols-outlined text-[16px]">stop</span>
         <span>Parar</span>
@@ -286,6 +290,11 @@ tailwind.config = {
     <button onclick="switchTab('resumo-pos-varredura')" id="nav-resumo-pos-varredura" class="nav-tab h-8 px-space-md flex items-center gap-space-xs text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface rounded-t transition-colors font-body-sm text-body-sm shrink-0" type="button">
       <span class="material-symbols-outlined text-[15px] text-secondary">verified</span>
       <span>Resumo Executivo Pós-Varredura</span>
+    </button>
+    <button onclick="switchTab('arquivos-apagados')" id="nav-arquivos-apagados" class="nav-tab h-8 px-space-md flex items-center gap-space-xs text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface rounded-t transition-colors font-body-sm text-body-sm shrink-0" type="button">
+      <span class="material-symbols-outlined text-[15px] text-primary-fixed">restore_from_trash</span>
+      <span>⚡ Arquivos Apagados (MFT Rápido)</span>
+      <span id="badge-nav-deleted" class="bg-primary-container/30 text-primary-fixed px-space-xs py-0.5 rounded font-label-badge text-label-badge">0</span>
     </button>
   </nav>
 </header>
@@ -873,6 +882,93 @@ tailwind.config = {
           <div id="exec-top-hot" class="flex flex-col gap-space-xs"></div>
         </div>
       </div>
+    </div>
+
+    <!-- ========================================================================
+         TELA 8: ARQUIVOS APAGADOS RÁPIDOS (MFT & RECYCLE.BIN FORENSICS)
+         ======================================================================== -->
+    <div id="panel-arquivos-apagados" class="tab-panel gap-space-md">
+      <!-- Banner Explicativo de Segurança -->
+      <section class="bg-surface-container-low rounded-lg p-space-md shadow-md flex flex-col lg:flex-row lg:items-center justify-between gap-space-md border border-primary/20">
+        <div class="flex items-center gap-space-md min-w-0">
+          <div class="flex items-center justify-center w-10 h-10 rounded-lg bg-primary-container/20 text-primary-fixed shrink-0 border border-primary/40">
+            <span class="material-symbols-outlined text-[24px]">restore_from_trash</span>
+          </div>
+          <div class="flex flex-col min-w-0">
+            <div class="flex items-center gap-space-sm flex-wrap">
+              <span class="font-headline-sm text-headline-sm text-primary font-bold tracking-tight">RECUPERAÇÃO CIRÚRGICA DE ARQUIVOS APAGADOS // ZERO DEEP SCAN</span>
+              <span class="font-data-mono-sm text-data-mono-sm text-secondary bg-secondary-container/20 px-space-xs py-0.5 rounded flex items-center gap-1 font-semibold">
+                <span class="material-symbols-outlined text-[13px]">speed</span>
+                100% READ-ONLY (MFT &amp; RECYCLE.BIN)
+              </span>
+            </div>
+            <span class="font-data-mono-sm text-data-mono-sm text-on-surface-variant truncate">
+              Varredura instantânea de metadados na Master File Table ($MFT) e Lixeira oculta ($I/$R). Sem estresse mecânico no disco.
+            </span>
+          </div>
+        </div>
+        <div class="flex items-center gap-space-sm shrink-0">
+          <button onclick="triggerQuickDeletedScan()" class="flex items-center gap-space-xs px-space-md py-1.5 rounded bg-secondary-container hover:bg-secondary text-on-secondary-container font-headline-sm text-headline-sm font-bold shadow-[0_0_8px_rgba(78,222,163,0.25)] transition-colors" type="button">
+            <span class="material-symbols-outlined text-[16px]">refresh</span>
+            <span>Escanear MFT &amp; Lixeira Agora</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- Aviso Dinâmico de Acesso à MFT -->
+      <div id="del-mft-notice" class="hidden p-space-sm bg-surface-container rounded border border-primary/30 flex items-center gap-space-sm text-body-sm text-on-surface-variant">
+        <span class="material-symbols-outlined text-[16px] text-primary">info</span>
+        <span>Carregando status de privilégios e acesso ao volume...</span>
+      </div>
+
+      <!-- 4 Cards KPI de Telemetria Instantânea -->
+      <section class="grid grid-cols-2 lg:grid-cols-4 gap-space-md w-full">
+        <div class="bg-surface-container-low rounded-lg p-space-md flex flex-col justify-between shadow-md border-l-2 border-primary-fixed-dim">
+          <span class="font-label-caps text-label-caps text-on-surface-variant uppercase">Tempo de Leitura Metadados</span>
+          <span id="del-kpi-time" class="font-headline-xl text-headline-xl text-primary font-bold font-data-mono-lg my-1">0.0 ms</span>
+          <span class="font-data-mono-sm text-data-mono-sm text-secondary">Zero Carving / Zero Deep Scan</span>
+        </div>
+        <div class="bg-surface-container-low rounded-lg p-space-md flex flex-col justify-between shadow-md border-l-2 border-primary">
+          <span class="font-label-caps text-label-caps text-on-surface-variant uppercase">Arquivos Apagados Mapeados</span>
+          <span id="del-kpi-total" class="font-headline-xl text-headline-xl text-on-surface font-bold font-data-mono-lg my-1">0</span>
+          <span class="font-data-mono-sm text-data-mono-sm text-on-surface-variant">$MFT Flags=0x0000 + $Recycle.Bin</span>
+        </div>
+        <div class="bg-surface-container-low rounded-lg p-space-md flex flex-col justify-between shadow-md border-l-2 border-secondary">
+          <span class="font-label-caps text-label-caps text-on-surface-variant uppercase">100% Recuperáveis</span>
+          <span id="del-kpi-recoverable" class="font-headline-xl text-headline-xl text-secondary font-bold font-data-mono-lg my-1">0</span>
+          <span class="font-data-mono-sm text-data-mono-sm text-secondary">Residentes + Clusters Mapeados</span>
+        </div>
+        <div class="bg-surface-container-low rounded-lg p-space-md flex flex-col justify-between shadow-md border-l-2 border-outline-variant">
+          <span class="font-label-caps text-label-caps text-on-surface-variant uppercase">Fontes Ativas</span>
+          <span id="del-kpi-source" class="font-headline-xl text-headline-xl text-primary-fixed font-bold font-data-mono-lg my-1">MFT &amp; Lixeira</span>
+          <span class="font-data-mono-sm text-data-mono-sm text-on-surface-variant">Modo Não-Invasivo</span>
+        </div>
+      </section>
+
+      <!-- Barra de Filtros Rápidos e Busca -->
+      <section class="bg-surface-container-low rounded-lg p-space-sm shadow-md flex flex-col lg:flex-row lg:items-center justify-between gap-space-sm">
+        <div class="flex items-center gap-space-xs flex-wrap">
+          <button onclick="setDeletedCategory('ALL')" data-cat="ALL" class="del-cat-btn px-space-sm py-1 rounded text-body-sm font-body-sm bg-primary text-on-primary font-bold transition-colors" type="button">Todos</button>
+          <button onclick="setDeletedCategory('RECOVERABLE')" data-cat="RECOVERABLE" class="del-cat-btn px-space-sm py-1 rounded text-body-sm font-body-sm bg-surface-container text-on-surface-variant hover:text-on-surface transition-colors" type="button">🟢 Apenas Recuperáveis</button>
+          <button onclick="setDeletedCategory('DOCS')" data-cat="DOCS" class="del-cat-btn px-space-sm py-1 rounded text-body-sm font-body-sm bg-surface-container text-on-surface-variant hover:text-on-surface transition-colors" type="button">Documentos &amp; PDFs</button>
+          <button onclick="setDeletedCategory('FOTOS_MIDIA')" data-cat="FOTOS_MIDIA" class="del-cat-btn px-space-sm py-1 rounded text-body-sm font-body-sm bg-surface-container text-on-surface-variant hover:text-on-surface transition-colors" type="button">Fotos &amp; Vídeos</button>
+          <button onclick="setDeletedCategory('CRYPTO_KEYS')" data-cat="CRYPTO_KEYS" class="del-cat-btn px-space-sm py-1 rounded text-body-sm font-body-sm bg-surface-container text-on-surface-variant hover:text-on-surface transition-colors" type="button">Cripto &amp; Chaves</button>
+          <button onclick="setDeletedCategory('NTFS_MFT')" data-cat="NTFS_MFT" class="del-cat-btn px-space-sm py-1 rounded text-body-sm font-body-sm bg-surface-container text-on-surface-variant hover:text-on-surface transition-colors" type="button">MFT (Shift+Del)</button>
+          <button onclick="setDeletedCategory('RECYCLE_BIN')" data-cat="RECYCLE_BIN" class="del-cat-btn px-space-sm py-1 rounded text-body-sm font-body-sm bg-surface-container text-on-surface-variant hover:text-on-surface transition-colors" type="button">Lixeira Oculta ($I/$R)</button>
+        </div>
+
+        <div class="flex items-center gap-space-xs bg-surface-container-lowest px-space-sm py-1 rounded w-full lg:w-80 border border-outline-variant/30">
+          <span class="material-symbols-outlined text-[16px] text-on-surface-variant">search</span>
+          <input id="del-search-input" oninput="renderDeletedFiles()" placeholder="Filtrar por nome ou caminho original..." class="bg-transparent text-on-surface font-data-mono-sm text-data-mono-sm outline-none w-full placeholder-on-surface-variant/50" type="text"/>
+        </div>
+      </section>
+
+      <!-- Lista de Arquivos Apagados Encontrados -->
+      <section id="deleted-files-list" class="flex flex-col gap-space-xs w-full pb-6">
+        <div class="bg-surface-container-low rounded p-space-xl text-center text-on-surface-variant font-body-md">
+          Aguardando comando de varredura. Clique no botão <strong>Escanear MFT &amp; Lixeira Agora</strong> acima para localizar instantaneamente todos os arquivos apagados da unidade.
+        </div>
+      </section>
     </div>
 
   </div>
@@ -2332,18 +2428,24 @@ async function loadDiagnosticsData() {
 /* ============================================================================
    EXTRAÇÃO SEGURA DE EVIDÊNCIAS FORENSES (CADEIA DE CUSTÓDIA COM SHA-256)
    ============================================================================ */
+function showEvidenceModal(res) {
+  if (!res) return;
+  document.getElementById('evi-modal-name').innerText = res.file_name || '';
+  document.getElementById('evi-modal-path').innerText = res.dest_path || '';
+  document.getElementById('evi-modal-sha').innerText = res.sha256 || '';
+  document.getElementById('evi-modal-manifest').innerText = res.manifest_path || '';
+  const folderToOpen = res.destination_dir || (res.dest_path ? res.dest_path.substring(0, Math.max(res.dest_path.lastIndexOf('/'), res.dest_path.lastIndexOf('\\'))) : '');
+  document.getElementById('evi-btn-open-folder').onclick = () => openInExplorer(folderToOpen);
+  document.getElementById('modal-evidence-success').classList.remove('hidden');
+}
+
 async function exportEvidenceItem(filePath) {
   if (!filePath) return;
   showToast('Iniciando extração forense Read-Only e cálculo de Hash SHA-256...');
   try {
     const res = await apiPost('/api/export_evidence', { path: filePath });
     if (res.ok) {
-      document.getElementById('evi-modal-name').innerText = res.file_name;
-      document.getElementById('evi-modal-path').innerText = res.dest_path;
-      document.getElementById('evi-modal-sha').innerText = res.sha256;
-      document.getElementById('evi-modal-manifest').innerText = res.manifest_path;
-      document.getElementById('evi-btn-open-folder').onclick = () => openInExplorer(res.destination_dir);
-      document.getElementById('modal-evidence-success').classList.remove('hidden');
+      showEvidenceModal(res);
       showToast('Evidência extraída e validada!');
     } else {
       showToast('Falha na extração: ' + (res.error || 'Erro desconhecido'));
@@ -2355,6 +2457,182 @@ async function exportEvidenceItem(filePath) {
 
 function closeEvidenceModal() {
   document.getElementById('modal-evidence-success').classList.add('hidden');
+}
+
+async function openHexSectorOffset(path, offset) {
+  CURRENT_HEX_PATH = path;
+  document.getElementById('hex-offset-input').value = offset || 0;
+  document.getElementById('modal-hex').classList.remove('hidden');
+  await loadHexData(path, offset || 0);
+}
+
+/* ============================================================================
+   RECUPERAÇÃO RÁPIDA DE ARQUIVOS APAGADOS (MFT & RECYCLE.BIN FORENSICS)
+   ============================================================================ */
+let DELETED_SCAN_DATA = null;
+let DELETED_CATEGORY = 'ALL';
+
+function setDeletedCategory(cat) {
+  DELETED_CATEGORY = cat;
+  document.querySelectorAll('.del-cat-btn').forEach(btn => {
+    if (btn.dataset.cat === cat) {
+      btn.classList.add('bg-primary', 'text-on-primary', 'font-bold');
+      btn.classList.remove('bg-surface-container', 'text-on-surface-variant');
+    } else {
+      btn.classList.remove('bg-primary', 'text-on-primary', 'font-bold');
+      btn.classList.add('bg-surface-container', 'text-on-surface-variant');
+    }
+  });
+  renderDeletedFiles();
+}
+
+async function triggerQuickDeletedScan() {
+  switchTab('arquivos-apagados');
+  const btnText = document.getElementById('btn-quick-deleted-text');
+  if (btnText) btnText.innerText = 'Lendo $MFT...';
+  showToast('Iniciando triagem rápida de arquivos apagados ($MFT / Lixeira)...');
+
+  const targetPath = APP_STATE?.selected_path || '';
+  const res = await apiPost('/api/quick_deleted_scan', { path: targetPath });
+
+  if (btnText) btnText.innerText = '⚡ Apagados (Rápido)';
+
+  if (res.ok) {
+    DELETED_SCAN_DATA = res;
+    const badge = document.getElementById('badge-nav-deleted');
+    if (badge) badge.innerText = res.total_found || 0;
+    showToast(`Quick Scan concluído em ${res.elapsed_ms}ms: ${res.total_found} arquivos encontrados!`);
+    renderDeletedFiles();
+  } else {
+    showToast('Aviso: ' + (res.error || 'Falha ao executar o Quick Scan.'));
+  }
+}
+
+function renderDeletedFiles() {
+  if (!DELETED_SCAN_DATA) {
+    const container = document.getElementById('deleted-files-list');
+    if (container) {
+      container.innerHTML = `<div class="bg-surface-container-low rounded p-space-xl text-center text-on-surface-variant font-body-md">
+        Nenhuma varredura rápida executada ainda. Clique no botão <strong>⚡ Apagados (Rápido)</strong> no topo ou no botão <strong>Escanear MFT &amp; Lixeira Agora</strong> acima para ler instantaneamente a $MFT e Lixeira.
+      </div>`;
+    }
+    return;
+  }
+
+  const d = DELETED_SCAN_DATA;
+  const kpiTime = document.getElementById('del-kpi-time');
+  if (kpiTime) kpiTime.innerText = `${d.elapsed_ms} ms`;
+  const kpiTotal = document.getElementById('del-kpi-total');
+  if (kpiTotal) kpiTotal.innerText = `${d.total_found} arquivos`;
+  const kpiRec = document.getElementById('del-kpi-recoverable');
+  if (kpiRec) kpiRec.innerText = `${d.recoverable_count} íntegros`;
+  const kpiSrc = document.getElementById('del-kpi-source');
+  if (kpiSrc) {
+    kpiSrc.innerText = d.mft_accessible ? 'MFT Bruta + Lixeira' : 'Lixeira ($Recycle.Bin)';
+  }
+
+  const notice = document.getElementById('del-mft-notice');
+  if (notice) {
+    if (d.mft_status_message) {
+      notice.classList.remove('hidden');
+      notice.innerHTML = `<span class="material-symbols-outlined text-[16px] text-primary">info</span><span>${escapeHtml(d.mft_status_message)}</span>`;
+    } else {
+      notice.classList.add('hidden');
+    }
+  }
+
+  const query = (document.getElementById('del-search-input')?.value || '').trim().toLowerCase();
+  let list = (d.entries || []).filter(item => {
+    let matchCat = true;
+    if (DELETED_CATEGORY === 'RECOVERABLE') matchCat = item.can_recover;
+    else if (DELETED_CATEGORY === 'NTFS_MFT') matchCat = item.source_type === 'NTFS_MFT';
+    else if (DELETED_CATEGORY === 'RECYCLE_BIN') matchCat = item.source_type === 'RECYCLE_BIN';
+    else if (DELETED_CATEGORY !== 'ALL') matchCat = item.category === DELETED_CATEGORY;
+
+    const matchQ = !query ||
+      item.name.toLowerCase().includes(query) ||
+      item.original_path.toLowerCase().includes(query) ||
+      item.source_badge.toLowerCase().includes(query);
+
+    return matchCat && matchQ;
+  });
+
+  const container = document.getElementById('deleted-files-list');
+  if (!container) return;
+
+  if (!list.length) {
+    container.innerHTML = `<div class="bg-surface-container-low rounded p-space-xl text-center text-on-surface-variant font-body-md">
+      Nenhum arquivo apagado corresponde aos filtros selecionados (${d.total_found} detectados no total).
+    </div>`;
+    return;
+  }
+
+  container.innerHTML = list.slice(0, 150).map(item => {
+    const isCrypto = item.category === 'CRYPTO_KEYS';
+    const borderCls = isCrypto ? 'border-l-2 border-error' : (item.can_recover ? 'border-l-2 border-secondary' : 'border-l-2 border-outline-variant');
+    const recBadgeCls = item.can_recover ? 'bg-secondary-container text-on-secondary-container' : 'bg-surface-container-high text-on-surface-variant';
+
+    return `
+    <article class="bg-surface-container-low hover:bg-surface-container p-space-sm rounded transition-all shadow-sm ${borderCls}">
+      <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-space-sm">
+        <div class="flex-1 min-w-0 space-y-1">
+          <div class="flex items-center gap-space-xs flex-wrap">
+            <span class="font-label-badge text-label-badge ${recBadgeCls} px-1.5 py-0.5 rounded font-bold">${escapeHtml(item.recoverability_label)}</span>
+            <span class="bg-surface-container-high text-primary font-label-badge text-label-badge px-1.5 py-0.5 rounded font-bold">${escapeHtml(item.source_badge)}</span>
+            <span class="font-headline-sm text-headline-sm ${isCrypto ? 'text-error' : 'text-primary'} font-bold select-all">${escapeHtml(item.name)}</span>
+          </div>
+          <div class="flex items-center gap-space-xs font-data-mono-sm text-data-mono-sm text-on-surface-variant truncate">
+            <span class="material-symbols-outlined text-[13px] text-outline">history</span>
+            <span class="text-on-surface-variant">Caminho original:</span>
+            <code class="text-on-surface truncate select-all">${escapeHtml(item.original_path)}</code>
+          </div>
+          <div class="flex items-center gap-space-md font-data-mono-sm text-data-mono-sm text-on-surface-variant flex-wrap">
+            <span>Tamanho: <strong class="text-on-surface">${escapeHtml(item.formatted_size)}</strong></span>
+            <span>•</span>
+            <span>Data de Exclusão/Modificação: <strong class="text-on-surface">${escapeHtml(item.formatted_date)}</strong></span>
+            <span>•</span>
+            <span class="text-primary-fixed font-semibold">CATEGORIA: ${escapeHtml(item.category)}</span>
+          </div>
+        </div>
+        <div class="flex lg:flex-col gap-space-xs shrink-0 items-end justify-start self-start pt-1">
+          <div class="flex items-center gap-space-xs w-full">
+            <button onclick="copyTextValue(this.getAttribute('data-path'), 'Caminho copiado!')" data-path="${escapeHtml(item.original_path)}" class="flex-1 h-7 px-space-sm bg-surface-container-high hover:bg-surface-variant text-primary rounded flex items-center justify-center gap-1 text-body-sm font-body-sm" type="button">
+              <span class="material-symbols-outlined text-[14px]">content_copy</span><span>Copiar</span>
+            </button>
+            ${item.volume_device_path && item.mft_record_offset > 0 ? `
+            <button onclick="openHexSectorOffset(this.getAttribute('data-vol'), parseInt(this.getAttribute('data-off')))" data-vol="${escapeHtml(item.volume_device_path)}" data-off="${item.mft_record_offset}" class="flex-1 h-7 px-space-sm bg-surface-container-high hover:bg-surface-variant text-secondary rounded flex items-center justify-center gap-1 text-body-sm font-body-sm font-semibold" title="Inspecionar Registro MFT no Hex Viewer" type="button">
+              <span class="material-symbols-outlined text-[14px]">biotech</span><span>Hex MFT</span>
+            </button>` : ''}
+          </div>
+          ${item.can_recover ? `
+          <button onclick="recoverDeletedFile('${escapeHtml(item.entry_id)}')" class="w-full h-7 px-space-sm bg-secondary-container hover:bg-secondary text-on-secondary-container hover:text-on-secondary rounded flex items-center justify-center gap-space-xs text-body-sm font-body-sm font-bold shadow-[0_0_8px_rgba(78,222,163,0.25)] transition-colors" type="button">
+            <span class="material-symbols-outlined text-[15px]">restore_from_trash</span>
+            <span>Recuperar Arquivo</span>
+          </button>` : `
+          <button disabled class="w-full h-7 px-space-sm bg-surface-container text-on-surface-variant opacity-60 rounded flex items-center justify-center gap-space-xs text-body-sm font-body-sm cursor-not-allowed" type="button">
+            <span class="material-symbols-outlined text-[15px]">block</span>
+            <span>Sobrescrito</span>
+          </button>`}
+        </div>
+      </div>
+    </article>`;
+  }).join('');
+}
+
+async function recoverDeletedFile(entryId) {
+  if (!entryId) return;
+  showToast('Reconstruindo arquivo apagado em modo Read-Only...');
+  try {
+    const res = await apiPost('/api/recover_deleted_file', { entry_id: entryId });
+    if (res.ok) {
+      showToast(`✅ RECUPERADO: ${res.file_name} • SHA-256: ${res.sha256.substring(0, 16)}...`);
+      showEvidenceModal(res);
+    } else {
+      showToast('Erro ao recuperar: ' + (res.error || 'Falha na extração.'));
+    }
+  } catch (err) {
+    showToast('Erro ao comunicar com o servidor: ' + err.message);
+  }
 }
 
 // Fechar modais com tecla ESC

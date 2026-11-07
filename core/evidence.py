@@ -28,13 +28,18 @@ def calculate_file_sha256(file_path: str, chunk_size: int = 65536) -> str:
 
 def get_default_evidence_dir() -> str:
     """Retorna o diretório padrão para exportação de evidências (Desktop/Evidencias_DiskRadar)."""
+    import tempfile
     desktop = os.path.join(os.path.expanduser("~"), "Desktop")
     if not os.path.isdir(desktop):
-        # Fallback para pasta home caso Desktop não exista
         desktop = os.path.expanduser("~")
     target_dir = os.path.join(desktop, "Evidencias_DiskRadar")
-    os.makedirs(target_dir, exist_ok=True)
-    return target_dir
+    try:
+        os.makedirs(target_dir, exist_ok=True)
+        return target_dir
+    except (OSError, PermissionError):
+        fallback = os.path.join(tempfile.gettempdir(), "Evidencias_DiskRadar")
+        os.makedirs(fallback, exist_ok=True)
+        return fallback
 
 
 def export_evidence_file(

@@ -331,6 +331,8 @@ class StitchBackendController:
         self.has_connected: bool = False
         self.shutdown_requested: bool = False
         self._is_querying_hw: bool = False
+        self.last_deleted_scan: Optional[Any] = None
+        self.deleted_entries_by_id: Dict[str, Any] = {}
 
         # Carrega informações de hardware S.M.A.R.T. em background para inicialização instantânea
         threading.Thread(
@@ -1020,6 +1022,69 @@ class _StitchHTTPHandler(BaseHTTPRequestHandler):
                     f"📥 EVIDÊNCIA EXTRAÍDA: {res['file_name']} • SHA-256: {res['sha256'][:16]}... • Salva em: {res['dest_path']}"
                 )
             self._send_json(res)
+            return
+
+        if parsed.path == "/api/quick_deleted_scan":
+            from core.deleted_scanner import run_quick_deleted_scan
+            target = str(body.get("path") or self.controller.selected_path or "").strip()
+            res = run_quick_deleted_scan(target)
+            self.controller.last_deleted_scan = res
+            self.controller.deleted_entries_by_id = {e.entry_id: e for e in res.entries}
+            self.controller._append_log(
+                "[MFT-QUICK]",
+                "ok" if res.total_found > 0 else "info",
+                f"⚡ QUICK SCAN APAGADOS ({res.elapsed_ms:.0f}ms): {res.total_found} arquivos apagados detectados ({res.recoverable_count} recuperáveis)."
+            )
+            self._send_json({
+                "ok": res.ok,
+                "target_path": res.target_path,
+                "elapsed_ms": res.elapsed_ms,
+                "mft_accessible": res.mft_accessible,
+                "mft_status_message": res.mft_status_message,
+                "total_found": res.total_found,
+                "recoverable_count": res.recoverable_count,
+                "overwritten_count": res.overwritten_count,
+                "mft_count": res.mft_count,
+                "recycle_count": res.recycle_count,
+                "entries": [
+                    {
+                        "entry_id": e.entry_id,
+                        "name": e.name,
+                        "original_path": e.original_path,
+                        "extension": e.extension,
+                        "size_bytes": e.size_bytes,
+                        "formatted_size": e.formatted_size,
+                        "deleted_timestamp": e.deleted_timestamp,
+                        "formatted_date": e.formatted_date,
+                        "source_type": e.source_type,
+                        "source_badge": e.source_badge,
+                        "category": e.category,
+                        "recoverability": e.recoverability,
+                        "recoverability_label": e.recoverability_label,
+                        "can_recover": e.can_recover,
+                        "mft_record_offset": e.mft_record_offset,
+                        "volume_device_path": e.volume_device_path,
+                    }
+                    for e in res.entries
+                ],
+            })
+            return
+
+        if parsed.path == "/api/recover_deleted_file":
+            from core.deleted_scanner import recover_deleted_entry
+            entry_id = str(body.get("entry_id") or "").strip()
+            entry = self.controller.deleted_entries_by_id.get(entry_id)
+            if not entry:
+                self._send_json({"ok": False, "error": "Registro de arquivo apagado não encontrado no cache. Execute o Quick Scan novamente."})
+                return
+            rec = recover_deleted_entry(entry)
+            if rec.get("ok"):
+                self.controller._append_log(
+                    "[RECUPERADO]",
+                    "crit",
+                    f"♻️ ARQUIVO APAGADO RECUPERADO: {rec['file_name']} ({rec['formatted_size']}) • SHA-256: {rec['sha256'][:16]}..."
+                )
+            self._send_json(rec)
             return
 
         if parsed.path == "/api/hex_inspect":
