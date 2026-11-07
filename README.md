@@ -1,126 +1,117 @@
-# 📡 Geio DiskRadar — Triador e Indexador Read-Only de HDs e SSDs de Sucata
+# 📡 Geio DiskRadar (v2.1+) — Triador e Indexador Read-Only de HDs e SSDs
 
-Aplicação Desktop em Python 3.11+ com interface Dark Mode em **CustomTkinter** projetada para triagem ultra-rápida e **100% Read-Only (somente leitura)** de HDs e SSDs conectados via Dock USB.
+Software Desktop em Python 3.11+ para triagem ultra-rápida, forense e **100% Read-Only (somente leitura)** de HDs e SSDs conectados via Dock USB/SATA. Projetado para operadores de bancada, recuperadores de ativos e técnicos que precisam avaliar lotes de discos descartados ou sucata.
 
-O **DiskRadar** lê apenas metadados do sistema de arquivos (`os.scandir` / `stat`) sem nunca abrir o conteúdo dos arquivos nem calcular hashes, evitando travamentos em discos com *Bad Blocks* físicos.
+O **DiskRadar** lê metadados do sistema de arquivos (`os.scandir` / `stat`) sem nunca alterar, criar, mover ou deletar dados na unidade, preservando discos com falhas físicas e *Bad Blocks*.
 
 ---
 
 ## ✨ Principais Funcionalidades
 
-1. **Seletor de Unidade e "Crachá do Disco" (Header Instantâneo & Telemetria S.M.A.R.T.):**
-   - Detecta Modelo Físico, Número de Série (`Serial Number`), Tipo de Mídia (`HDD`/`SSD`/`NVMe`), Rotação (`RPM`) e Saúde S.M.A.R.T. no Windows via PowerShell nativo (`Get-Partition`, `Get-Disk`, `Get-PhysicalDisk` e `MSStorageDriver_ATAPISmartData` com `ConvertTo-Json` e `CREATE_NO_WINDOW`, sem depender de `pywin32`/`wmi`).
-   - **Horas de Uso (Power-On Hours):** Informa exatamente quantas horas o disco já operou ligado (ex: `14.280h (~595 dias)` e quantidade de ciclos de ligamento), essencial para precificar lotes de sucata.
-   - Possui fallback gracioso no Linux para desenvolvimento e testes em VM.
-   - Identifica automaticamente os possíveis donos do HD (`Users` / `Documents and Settings`) e estima a data do último uso com base em `Desktop`, `Documents` e `Downloads`.
-   - Exibe alerta visual imediato caso a saúde S.M.A.R.T. indique falha física, setores realocados ou pendentes.
+1. **Seletor de Unidade e "Crachá do Disco" (Telemetria S.M.A.R.T. & Hardware):**
+   - Detecta Modelo Físico, Número de Série (`S/N`), Tipo de Mídia (`HDD`/`SSD`/`NVMe`), Rotação (`RPM`), Temperatura e Saúde S.M.A.R.T. no Windows via PowerShell nativo (`Get-Partition`, `Get-Disk`, `Get-PhysicalDisk` e `MSStorageDriver_ATAPISmartData` com `ConvertTo-Json` e `CREATE_NO_WINDOW`, sem depender de drivers externos).
+   - **Horas de Uso (Power-On Hours):** Informa exatamente quantas horas o disco já operou ligado (ex: `14.280h (~595 dias)` e contagem de ciclos de ligamento), essencial para precificar lotes de sucata.
+   - Possui fallback no Linux para desenvolvimento e testes em bancada/VM.
+   - Identifica automaticamente os perfis de usuários no disco (`Users` / `Documents and Settings`) e estima a data do último uso com base em arquivos recentes.
+   - Alerta visual imediato caso haja risco físico, setores realocados ou pendentes.
 
 2. **Motor de Varredura Assíncrono Anti-Travamento (`os.scandir`):**
    - Executa em `threading.Thread` dedicada com comunicação em tempo real via `queue.Queue`.
-   - Ignora imediatamente diretórios de sistema e cache (`Windows`, `Program Files`, `AppData`, `node_modules`, `.git`, etc.).
-   - Isola erros `OSError`, `PermissionError` e `FileNotFoundError` individualmente e registra possíveis *Bad Blocks* sem interromper a triagem.
+   - Ignora imediatamente diretórios de sistema e cache (`Windows`, `Program Files`, `AppData`, `node_modules`, `.git`, etc.) na varredura recursiva cega para economizar tempo.
+   - Realiza sondagem cirúrgica e segura em locais de alto valor sem varrer gigabytes de caches irrelevantes.
+   - Isola erros `OSError`, `PermissionError` e registra possíveis *Bad Blocks* sem travar a interface.
 
 3. **Motor de Classificação Inteligente (`core/rules.py` & `core/classifier.py`):**
-   - **Visão 1 — Pastas Quentes:** Agrupa por diretório fotos (`> 50 KB`), vídeos (`> 500 KB`) e documentos comuns, ordenando por relevância e tamanho para facilitar o *drag-and-drop*.
-   - **Visão 2 — Agulhas no Palheiro (Caça a Dados Valiosos em Sucata):**
-     - **Cripto, Carteiras & BIP-39:** Detecta `wallet.dat` (Bitcoin Core, Dogecoin, Litecoin), `electrum.dat`, `*.wallet`, `*.seed`, `*.sparrow` (Sparrow Wallet), `*.keys` (Monero), Wasabi Wallet, Daedalus (Cardano), Atomic Wallet, rastros de Trezor Suite e Ledger Live, e cofres de extensões Web3 (MetaMask, Phantom, Ronin, TronLink, Coinbase).
-     - **Detector Ultraleve de Frases BIP-39:** Inspeciona com segurança arquivos de texto leves (`.txt`, `.rtf`, `.note` menores que 32 KB) buscando sequências de 12 ou 24 palavras do dicionário mnemônico oficial de 2048 palavras BIP-39, sem nunca expor nem gravar as palavras em disco.
-     - **Navegadores & Sessões:** Sondagem cirúrgica e segura nos perfis de usuários (Chrome, Edge, Brave, Opera, Firefox) para extrair `Login Data` (senhas salvas), `Web Data` (autofill/cartões), `Bookmarks` e `History`, sem varrer gigabytes de caches inúteis.
+   - **Visão 1 — Pastas Quentes:** Agrupa fotos (`> 50 KB`), vídeos (`> 500 KB`) e documentos comuns por diretório, calculando contadores, volume total e data recente para cópia rápida.
+   - **Visão 2 — Agulhas no Palheiro (Achados Críticos):**
+     - **Cripto, Carteiras & BIP-39:** Detecta `wallet.dat` (Bitcoin Core, Dogecoin, Litecoin), `electrum.dat`, `*.wallet`, `*.seed`, `*.sparrow` (Sparrow Wallet), `*.keys` (Monero), Wasabi Wallet, Daedalus (Cardano), Atomic Wallet, rastros de Trezor Suite e Ledger Live, e extensões Web3 (MetaMask, Phantom, Ronin, TronLink, Coinbase).
+     - **Detector de Sementes BIP-39:** Inspeciona com segurança arquivos de texto leves buscando sequências mnemônicas de 12 a 24 palavras do dicionário oficial de 2048 palavras BIP-39, sem nunca gravar ou expor as palavras em disco.
+     - **Navegadores & Sessões:** Localiza `Login Data` (senhas salvas), `Web Data`, `Bookmarks` e `History` dos principais navegadores (Chrome, Edge, Brave, Opera, Firefox).
      - **Engenharia / Arquitetura (CAD / 3D):** `.dwg`, `.dxf`, `.rvt`, `.skp`, `.step`, `.stp`, `.iges`, `.stl`, `.sldprt`, `.sldasm`, `.blend`.
      - **Design / Gráfica:** `.psd`, `.ai`, `.cdr`, `.eps`, `.indd`, `.prproj`, `.aep`.
      - **E-mails & Mensagens:** `.pst`, `.ost` (Outlook), `msgstore.db*` (WhatsApp), perfis Thunderbird.
-     - **Contábil / IRPF & Lotes Fiscais:** Declarações `.dec`, `.rec`, `.dbk` e agrupamento inteligente de pastas com centenas de arquivos `.xml` fiscais.
+     - **Contábil / IRPF & Lotes Fiscais:** Declarações `.dec`, `.rec`, `.dbk` e agrupamento inteligente de pastas com arquivos `.xml` fiscais.
      - **Bancos de Dados ERP/PDV:** `.fdb`, `.gdb`, `.mdf`, `.ldf`, `.bak`, `.sql`, `.sqlite`, `.sqlite3`.
-     - **Backups & Imagens de Disco / VM:** `.tib` (Acronis), `.vbk` (Veeam), `.gho`, `.iso`, `.vhd`, `.vhdx`, `.vmdk`, `.ova`, `.ovf`, `.zip`, `.rar`, `.7z`.
-     - **Caçador de Palavras-Chave:** Varre nomes de arquivos e pastas buscando termos como `senha`, `wallet`, `seed`, `bitcoin`, `escritura`, `contrato`, `inventario`, `familia`, etc.
+     - **Backups & Imagens:** `.tib` (Acronis), `.vbk` (Veeam), `.gho`, `.iso`, `.vhd`, `.vhdx`, `.vmdk`, `.ova`, `.zip`, `.rar`, `.7z`.
 
-4. **Calculadora Forense de Linha do Tempo & Histograma de Atividade (Aba 4):**
-   - Agrupa e contabiliza a atividade ano a ano (fotos, vídeos, documentos, arquivos críticos e volume em MB/GB).
-   - Identifica o período exato de uso do disco (ex: 2011 a 2018) e destaca o **Ano de Pico de Uso** com badge dourado (`★ PICO`).
-   - Filtro forense anti-corrupção: ignora timestamps corrompidos ou padrões de MFT/FAT (ex: 1980 ou 2099+).
-   - Botão de salto rápido `🎯 Ver Críticos de <Ano>` que direciona imediatamente para a Aba 2 com os achados daquele ano.
+4. **Linha do Tempo Forense & Histograma de Atividade (Aba 4):**
+   - Contabiliza arquivos ano a ano identificando o período exato de uso do HD e destacando o **Ano de Pico de Uso**.
 
-5. **Ponte Direta com o Windows Explorer e Área de Transferência:**
-   - Botões **"Abrir no Explorer"** executam `explorer.exe /select,"<caminho>"` no Windows para abrir a janela já com o arquivo ou pasta selecionado e destacado. No Linux, utiliza `xdg-open`.
-   - Botões **"📋 Copiar"** integrados em todas as linhas (Pastas, Arquivos, Usuários e Erros) com feedback tátil no botão (`✔ Copiado!`), permitindo colar caminhos em scripts de terminal, robocopy ou inventários.
-   - Botão para copiar o relatório completo de erros/bad blocks de uma só vez para a área de transferência.
+5. **Ponte com Windows Explorer & Área de Transferência:**
+   - Para arquivos: executa `explorer.exe /select,"<caminho>"` destacando o item na pasta original.
+   - Para pastas: abre diretamente o diretório para exploração imediata.
+   - Botões de cópia rápida com feedback tátil (`✔ Copiado!`).
 
-6. **Interface Gráfica Moderna & Ergonômica (CustomTkinter Dark Mode em 5 Abas):**
-   - **Header & Command Bar:** Identidade visual com comandos principais agrupados e responsivos.
-   - **Crachá do Disco Interativo:** Dashboard com medidor visual de capacidade (gauge bar de % usado vs livre), cópia rápida de Serial Number e badge S.M.A.R.T. colorido.
-   - **HUD ao Vivo:** Pílulas de métricas em tempo real (`Pastas`, `Arquivos`, `Fotos`, `Vídeos`, `Docs`, `Pastas Quentes`, `Críticos`, `Erros`).
-   - **Ordenação Dinâmica:** Permite ordenar Pastas Quentes por Relevância, Maior Tamanho, Quantidade de Arquivos ou Data Mais Recente diretamente na interface.
-   - **Cartões de Usuários Estruturados:** Separação visual clara entre pastas pessoais (`Desktop`, `Documents`, `Pictures`, `Downloads`) e sessões de navegadores (`Chrome`, `Edge`, `Firefox`, `AppData`).
-
-7. **Gerador de "Catálogo de Autópsia" (Relatório HTML Único Autocontido):**
-   - Exporta um único arquivo `.html` 100% offline (`Relatorio_YYYY-MM-DD_<Usuarios>_<Modelo>_SN-<Serial>.html`) com CSS Dark Mode, gráfico de barras da Linha do Tempo e busca instantânea em JavaScript para consultar até 50.000 arquivos mesmo meses após o descarte do HD.
-
-8. **Otimizações de Alto Desempenho (Performance Engine):**
-   - **Descarte em $O(1)$ de CPU:** Conjunto unificado `ALL_INTERESTING_EXTENSIONS` e filtro relâmpago `is_file_potentially_relevant` que descarta milhões de arquivos de sistema (`.dll`, `.sys`, `.ini`, `.cat`) sem chamadas desnecessárias de sistema.
-   - **Economia de RAM via `slots=True`:** Todas as estruturas de dados (`HotFolderItem`, `CriticalFileItem`, `CatalogEntry`, `DiskBadgeInfo`) usam slots nativos do Python 3.10+, reduzindo o consumo de memória em mais de 60%.
-   - **PowerShell em Thread Assíncrona:** A troca de unidade e o carregamento do app respondem em 0ms (sem congelar a interface enquanto o PowerShell consulta o hardware).
-   - **Debounce de 200ms & Lazy Loading na GUI:** A busca rápida possui debounce para evitar redesenho por tecla e renderiza sob demanda em blocos de 35 itens, eliminando gargalos de widgets do CustomTkinter.
+6. **Relatório HTML Autocontido ("Catálogo de Autópsia"):**
+   - Exporta um arquivo `.html` 100% offline com CSS Dark Mode e motor de busca rápida em JavaScript para consultas mesmo após a desconexão ou descarte do disco.
 
 ---
 
-## 📂 Estrutura do Projeto
+## 📂 Estrutura do Repositório
 
 ```text
 diskradar/
-├── main.py                 # Ponto de entrada da aplicação
-├── requirements.txt        # Dependências do projeto
-├── build_exe.bat           # Script automatizado para gerar DiskRadar.exe no Windows
-├── README.md               # Documentação de uso e compilação
-├── ui/
-│   └── app.py              # Interface gráfica CustomTkinter em 5 abas + Crachá do Disco
-└── core/
-    ├── disk_info.py        # Coleta de Hardware, Serial, S.M.A.R.T. (PowerShell/Linux) e Usuários
-    ├── scanner.py          # Motor os.scandir multithread com Blocklist e captura de Bad Blocks
-    ├── classifier.py       # Classificação de Pastas Quentes, Agulhas no Palheiro e Catálogo
-    ├── bip39.py            # Dicionário de 2048 palavras e detector ultraleve de seed BIP-39
-    ├── rules.py            # Extensões, limites em bytes, blocklists e palavras-chave
-    ├── exporter.py         # Gerador de relatório HTML autocontido com busca JS
-    └── explorer_bridge.py  # Integração com explorer.exe /select e xdg-open
+├── main.py                 # Ponto de entrada (DPI Awareness Windows + inicialização da UI)
+├── requirements.txt        # Dependências de produção
+├── .env.example            # Exemplo de variáveis de ambiente opcionais
+├── .gitignore              # Regras estratégicas de exclusão Git
+├── run_linux.sh            # Script de inicialização rápida no Linux
+├── Executar_DiskRadar.bat  # Inicializador direto no Windows (sem precisar compilar)
+├── Compilar_EXE.bat        # Compilador PyInstaller automatizado (.exe standalone)
+├── LEIAME.txt              # Guia rápido de uso em português para Windows
+├── README.md               # Esta documentação
+├── core/                   # Motor Forense Read-Only (100% testado)
+│   ├── bip39.py            # Dicionário de 2048 palavras e detector ultraleve de sementes BIP-39
+│   ├── classifier.py       # Motor de classificação e dataclasses de resultados
+│   ├── disk_info.py        # Coleta de Hardware, S/N, S.M.A.R.T. e Usuários
+│   ├── explorer_bridge.py  # Integração segura com o Windows Explorer (/select) e xdg-open
+│   ├── exporter.py         # Gerador de relatório HTML offline com busca JS
+│   ├── rules.py            # Regras, extensões, blocklists e limites de relevância
+│   └── scanner.py          # Thread assíncrona (AsyncDiskScanner) com fila de eventos
+├── tests/                  # Suíte de testes unitários automatizados
+│   ├── test_bip39.py       # Testes do detector de sementes BIP-39
+│   ├── test_classifier.py  # Testes de agrupamento e scores de relevância
+│   ├── test_disk_info.py   # Testes dos resumos de telemetria e crachá do disco
+│   ├── test_explorer_bridge.py # Testes da ponte do gerenciador de arquivos
+│   └── test_rules.py       # Testes de regras de negócio e limites
+└── ui/                     # Camada de Interface Gráfica Desktop
+    └── app.py              # Interface Gráfica CustomTkinter (5 abas + HUD)
 ```
 
 ---
 
-## 🚀 Como Executar em Desenvolvimento (Linux ou Windows)
+## 🚀 Como Executar
 
-1. Crie e ative um ambiente virtual Python 3.11+:
-   ```bash
-   python3 -m venv venv
-   source venv/bin/activate   # No Linux
-   # ou: venv\Scripts\activate.bat (No Windows)
-   ```
+### No Linux (Desenvolvimento / Bancada):
+Basta rodar o script utilitário incluído:
+```bash
+./run_linux.sh
+```
+Ou manualmente com Python virtualenv:
+```bash
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+python3 main.py
+```
 
-2. Instale as dependências:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. Execute a aplicação:
-   ```bash
-   python3 main.py
-   ```
-
-> **Nota para Linux (Debian/Ubuntu):** Caso o `tkinter` não esteja instalado no sistema base, instale com `sudo apt-get install python3-tk`.
+### No Windows:
+- **Execução direta (sem compilar):** dê dois cliques em `Executar_DiskRadar.bat`.
+- **Gerar o executável único `.exe`:** dê dois cliques em `Compilar_EXE.bat`. O binário standalone será gerado em `dist\DiskRadar-v2.1.0.exe` e copiado automaticamente para a raiz.
 
 ---
 
-## 📦 Como Gerar o Executável `.exe` no Windows 10/11
+## 🧪 Suíte de Testes Automatizados
 
-No PC Windows, basta dar um duplo-clique em **`build_exe.bat`** (ou executá-lo pelo Prompt de Comando):
-
-```bat
-build_exe.bat
+Para executar os testes unitários da suíte `tests/`:
+```bash
+python3 -m unittest discover -s tests
 ```
 
-O script irá automaticamente:
-1. Criar o ambiente virtual `venv` (se ainda não existir).
-2. Instalar `customtkinter`, `psutil` e `pyinstaller`.
-3. Executar:
-   ```bat
-   pyinstaller --noconfirm --onefile --windowed --name "DiskRadar" --collect-all customtkinter main.py
-   ```
-4. Disponibilizar o executável portátil em **`dist\DiskRadar.exe`**.
+---
+
+## 🔒 Garantia de Segurança Inegociável
+
+- O Geio DiskRadar opera **EXCLUSIVAMENTE em modo LEITURA (Read-Only)**.
+- O software não contém nenhuma rotina de formatação, particionamento, deleção, sobrescrita ou movimentação de arquivos na unidade analisada.
+- A única operação de escrita existente é a exportação voluntária de relatórios HTML no local escolhido pelo usuário.
