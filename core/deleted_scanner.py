@@ -191,10 +191,15 @@ def scan_recycle_bin_deleted(target_path: str) -> List[DeletedFileEntry]:
         drive_root = clean_target
 
     candidate_dirs: List[str] = []
-    for name in ("$Recycle.Bin", "$RECYCLE.BIN", "RECYCLER", "Recycled"):
-        candidate = os.path.join(drive_root, name)
-        if os.path.isdir(candidate):
-            candidate_dirs.append(candidate)
+    roots_to_check = [clean_target]
+    if drive_root and drive_root != clean_target:
+        roots_to_check.append(drive_root)
+
+    for r_root in roots_to_check:
+        for name in ("$Recycle.Bin", "$RECYCLE.BIN", "RECYCLER", "Recycled"):
+            candidate = os.path.join(r_root, name)
+            if os.path.isdir(candidate) and candidate not in candidate_dirs:
+                candidate_dirs.append(candidate)
 
     # Se o target_path já for uma pasta dentro ou for a própria lixeira
     if os.path.isdir(clean_target) and clean_target not in candidate_dirs:
@@ -316,10 +321,12 @@ def scan_ntfs_mft_deleted(
     # Determina o descritor de dispositivo ou arquivo
     device_path = clean_target
     if sys.platform == "win32":
-        # Se for letra de unidade Windows (ex: "D:" ou "D:\")
-        if len(clean_target) >= 2 and clean_target[1] == ":":
-            drive_letter = clean_target[0].upper()
-            device_path = f"\\\\.\\{drive_letter}:"
+        # Se for especificamente letra de unidade Windows (ex: "D:" ou "D:\") e NÃO um arquivo existente
+        if not os.path.isfile(clean_target):
+            stripped = clean_target.rstrip("\\/")
+            if len(stripped) == 2 and stripped[1] == ":":
+                drive_letter = stripped[0].upper()
+                device_path = f"\\\\.\\{drive_letter}:"
 
     # Abre em modo estritamente Read-Only
     try:

@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """
-Gerador automatizado de GIFs animados de alta qualidade para o README do Geio DiskRadar.
+Gerador automatizado de GIFs animados de alta fidelidade para o README do Geio DiskRadar.
 Utiliza Firefox Headless para capturar as telas da interface Stitch em tempo real
 sobre o disco virtual forense e monta os GIFs animados em puro Python (sem Pillow/ImageMagick).
 """
 
+import json
 import os
 import shutil
 import struct
@@ -12,6 +13,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import urllib.request
 import zlib
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -87,32 +89,67 @@ def lzw_compress(data: bytes, min_code_size: int = 8) -> bytes:
     return bytes(out)
 
 
-def build_global_palette() -> bytes:
-    """Cria paleta global otimizada de 256 cores (cubo 6x6x6 + 16 tons de cinza forense + acentos ciano/verde)."""
-    palette = bytearray()
+def get_curated_palette_colors():
+    """Retorna lista de 256 tuplas (r, g, b) incluindo todas as cores forenses exatas do Stitch."""
+    colors = []
+    # 1. Cores Forenses Oficiais do Geio DiskRadar
+    brand_hexes = [
+        "#0c0e14", "#111319", "#191b22", "#1e1f26", "#282a30", "#33343b", "#373940",
+        "#44474f", "#849495", "#b9cacb", "#e2e2eb", "#ffffff",
+        "#00dbe9", "#7df4ff", "#dbfcff", "#006970", "#004f54", "#002022",
+        "#4edea3", "#6ffbbe", "#003824", "#005236", "#002113",
+        "#ffb4ab", "#ffdad6", "#ba1a1a", "#690005", "#ffb2b7", "#ffcdcf",
+        "#ffb86c", "#f1fa8c", "#bd93f9", "#ff79c6", "#8be9fd", "#50fa7b",
+    ]
+    for h in brand_hexes:
+        h = h.lstrip("#")
+        colors.append((int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)))
+
+    # 2. Rampa suave de cinzas (32 tons)
+    for i in range(32):
+        v = int(i * 255 / 31)
+        c = (v, v, v)
+        if c not in colors:
+            colors.append(c)
+
+    # 3. Cubo de cores 6x6x6
     levels = [0, 51, 102, 153, 204, 255]
     for r in levels:
         for g in levels:
             for b in levels:
-                palette.extend((r, g, b))
-    for i in range(16):
-        val = int(i * 255 / 15)
-        palette.extend((val, val, val))
-    while len(palette) < 768:
-        palette.extend((0, 0, 0))
-    return bytes(palette)
+                c = (r, g, b)
+                if c not in colors:
+                    colors.append(c)
+
+    colors = colors[:256]
+    while len(colors) < 256:
+        colors.append((0, 0, 0))
+    return colors
+
+
+_GLOBAL_PALETTE_LIST = get_curated_palette_colors()
+_GLOBAL_PALETTE_BYTES = bytes(b for rgb in _GLOBAL_PALETTE_LIST for b in rgb)
+_COLOR_CACHE = {}
 
 
 def rgb_to_palette_idx(r: int, g: int, b: int) -> int:
-    """Mapeamento ultrarrápido O(1) de cor RGB para a paleta global."""
-    if abs(r - g) < 10 and abs(g - b) < 10:
-        gray = (r + g + b) // 3
-        idx = int(gray * 15 / 255)
-        return 216 + idx
-    ri = (r * 5 + 127) // 255
-    gi = (g * 5 + 127) // 255
-    bi = (b * 5 + 127) // 255
-    return ri * 36 + gi * 6 + bi
+    """Mapeamento com cache e distância euclidiana exata para preservar as cores forenses."""
+    rgb = (r, g, b)
+    if rgb in _COLOR_CACHE:
+        return _COLOR_CACHE[rgb]
+
+    best_dist = 99999999
+    best_idx = 0
+    for idx, (pr, pg, pb) in enumerate(_GLOBAL_PALETTE_LIST):
+        dist = (r - pr) ** 2 + (g - pg) ** 2 + (b - pb) ** 2
+        if dist < best_dist:
+            best_dist = dist
+            best_idx = idx
+            if dist == 0:
+                break
+
+    _COLOR_CACHE[rgb] = best_idx
+    return best_idx
 
 
 def decode_and_downscale_png(filepath: str, scale: int = 2):
@@ -198,13 +235,12 @@ def create_animated_gif(frames, delays_cs, output_gif_path):
     """
     assert len(frames) > 0
     w, h, _ = frames[0]
-    pal = build_global_palette()
 
     gif = bytearray()
     gif.extend(b"GIF89a")
     gif.extend(struct.pack("<HH", w, h))
     gif.extend(bytes([0xF7, 0x00, 0x00]))  # 256 colors
-    gif.extend(pal)
+    gif.extend(_GLOBAL_PALETTE_BYTES)
     # Netscape 2.0 loop block
     gif.extend(b"\x21\xFF\x0BNETSCAPE2.0\x03\x01\x00\x00\x00")
 
@@ -230,7 +266,7 @@ def create_animated_gif(frames, delays_cs, output_gif_path):
 
 def main():
     print("=" * 74)
-    print("  GEIO DISKRADAR // GERADOR AUTOMATIZADO DE GIFS PARA O README")
+    print("  GEIO DISKRADAR // GERADOR DE GIFS DE ALTA FIDELIDADE PARA O README")
     print("=" * 74)
 
     temp_root = tempfile.mkdtemp(prefix="diskradar_win_disk_")
@@ -251,13 +287,30 @@ def main():
         url, controller, server = start_stitch_background_server()
         controller.select_target(temp_root)
         controller.start_scan()
-        time.sleep(1.2)
+
+        # Aguarda a varredura finalizar para que todo o dashboard esteja 100% populado
+        for _ in range(60):
+            time.sleep(0.1)
+            with controller.lock:
+                if controller.has_finished:
+                    break
+
+        # Executa também a triagem de arquivos apagados ($MFT e $Recycle.Bin)
+        req_del = urllib.request.Request(
+            f"{url}/api/quick_deleted_scan",
+            data=json.dumps({"path": temp_root}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        try:
+            urllib.request.urlopen(req_del, timeout=5)
+        except Exception:
+            pass
 
         views = [
             ("01_pastas_quentes.png", f"{url}?tab=pastas-quentes"),
             ("02_arquivos_criticos.png", f"{url}?tab=arquivos-criticos"),
             ("03_linha_do_tempo.png", f"{url}?tab=linha-do-tempo"),
-            ("04_apagados_rapidos.png", f"{url}?tab=apagados-rapidos"),
+            ("04_apagados_rapidos.png", f"{url}?tab=arquivos-apagados"),
             ("05_hex_inspector.png", f"{url}?modal=modal-hex"),
         ]
 
@@ -275,13 +328,13 @@ def main():
             subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=12)
             if os.path.isfile(dest_png):
                 png_paths[name] = dest_png
-                print(f"  - Captura salva: {name}")
+                print(f"  - Captura salva: {name} ({os.path.getsize(dest_png) / 1024:.1f} KB)")
             else:
                 print(f"  [AVISO] Falha ao capturar {name}")
 
         server.shutdown()
 
-    print("\n[2/3] Processando e decodificando frames PNG...")
+    print("\n[2/3] Processando e decodificando frames PNG com paleta forense...")
     decoded_frames = {}
     for name, path in png_paths.items():
         w, h, idx_px = decode_and_downscale_png(path, scale=2)
@@ -295,20 +348,20 @@ def main():
     overview_frames = [decoded_frames[n] for n in overview_names if n in decoded_frames]
     if overview_frames:
         gif1_path = os.path.join(docs_img_dir, "diskradar-overview.gif")
-        create_animated_gif(overview_frames, [250, 250, 250], gif1_path)
+        create_animated_gif(overview_frames, [300, 300, 300], gif1_path)
 
     # GIF 2: Apagados Rápidos & Inspetor Hexadecimal
     forensic_names = ["04_apagados_rapidos.png", "05_hex_inspector.png"]
     forensic_frames = [decoded_frames[n] for n in forensic_names if n in decoded_frames]
     if forensic_frames:
         gif2_path = os.path.join(docs_img_dir, "diskradar-quick-deleted.gif")
-        create_animated_gif(forensic_frames, [280, 280], gif2_path)
+        create_animated_gif(forensic_frames, [320, 320], gif2_path)
 
     shutil.rmtree(temp_dir, ignore_errors=True)
     shutil.rmtree(temp_root, ignore_errors=True)
 
     print("\n" + "=" * 74)
-    print("  [CONCLUIDO] GIFs gerados e prontos para incorporacao no README.md!")
+    print("  [CONCLUIDO] GIFs gerados e prontos para incorporação no README.md!")
     print("=" * 74)
     return 0
 

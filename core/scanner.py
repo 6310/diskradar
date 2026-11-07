@@ -41,7 +41,8 @@ def to_extended_path(path: str) -> str:
     """
     if sys.platform == "win32" and path:
         norm = os.path.normpath(os.path.abspath(path))
-        if not norm.startswith("\\\\?\\") and not norm.startswith("\\\\"):
+        # No Windows, o prefixo \\?\ só se aplica a caminhos com letra de unidade (ex: C:\...)
+        if len(norm) >= 2 and norm[1] == ":" and not norm.startswith("\\\\?\\") and not norm.startswith("\\\\"):
             return f"\\\\?\\{norm}"
     return path
 

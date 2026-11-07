@@ -12,8 +12,30 @@ STITCH_SPA_HTML = r"""<!DOCTYPE html>
 <link href="https://fonts.googleapis.com" rel="preconnect"/>
 <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet"/>
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
-<script src="https://cdn.tailwindcss.com"></script>
+<style>
+@font-face {
+  font-family: 'Material Symbols Outlined';
+  font-style: normal;
+  font-weight: 100 700;
+  src: url('/assets/vendor/materialsymbols.ttf') format('truetype');
+}
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined', sans-serif;
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
+}
+</style>
+<script src="/assets/vendor/tailwind.min.js"></script>
 <script id="tailwind-config">
 tailwind.config = {
   darkMode: "class",
@@ -2807,16 +2829,38 @@ async function applyGitHubOtaUpdate() {
 // Loop de sincronização e heartbeat
 setInterval(fetchState, 600);
 setInterval(() => apiPost('/api/heartbeat'), 2000);
-window.addEventListener('DOMContentLoaded', async () => {
-  await fetchState();
-  const urlParams = new URLSearchParams(window.location.search);
-  const tabParam = urlParams.get('tab') || window.location.hash.slice(1);
-  if (tabParam) switchTab(tabParam);
-  const modalParam = urlParams.get('modal');
-  if (modalParam) {
-    const m = document.getElementById(modalParam);
-    if (m) m.classList.remove('hidden');
+
+async function applyInitialStateIfPresent() {
+  if (window.__INITIAL_STATE__) {
+    APP_STATE = window.__INITIAL_STATE__;
+    if (APP_STATE.deleted_scan) {
+      DELETED_SCAN_DATA = APP_STATE.deleted_scan;
+      const badge = document.getElementById('badge-nav-deleted');
+      if (badge) badge.innerText = DELETED_SCAN_DATA.total_found || 0;
+      renderDeletedFiles();
+    }
+    renderAll();
   }
+  const urlParams = new URLSearchParams(window.location.search);
+  const tabParam = window.__INITIAL_TAB__ || urlParams.get('tab') || window.location.hash.slice(1);
+  if (tabParam) switchTab(tabParam);
+  const modalParam = window.__INITIAL_MODAL__ || urlParams.get('modal');
+  if (modalParam) {
+    if (modalParam === 'modal-hex') {
+      await openHexModal();
+    } else {
+      const m = document.getElementById(modalParam);
+      if (m) m.classList.remove('hidden');
+    }
+  }
+}
+
+// Executa síncrono imediatamente na interpretação do script
+applyInitialStateIfPresent();
+
+window.addEventListener('DOMContentLoaded', async () => {
+  await applyInitialStateIfPresent();
+  await fetchState();
 });
 </script>
 </body>

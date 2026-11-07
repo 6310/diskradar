@@ -954,8 +954,93 @@ class _StitchHTTPHandler(BaseHTTPRequestHandler):
         self.controller.has_connected = True
         self.controller.last_heartbeat = time.monotonic()
         parsed = urlparse(self.path)
+
+        # 1. Servidor de recursos estáticos locais (/assets/vendor/, /assets/diskradar.ico, etc.)
+        if parsed.path.startswith("/assets/"):
+            rel = parsed.path[len("/assets/"):].replace("..", "").lstrip("/\\")
+            asset_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", rel)
+            if os.path.isfile(asset_path):
+                content_type = "application/octet-stream"
+                if asset_path.endswith(".js"):
+                    content_type = "application/javascript; charset=utf-8"
+                elif asset_path.endswith(".css"):
+                    content_type = "text/css; charset=utf-8"
+                elif asset_path.endswith(".ttf"):
+                    content_type = "font/ttf"
+                elif asset_path.endswith(".woff2"):
+                    content_type = "font/woff2"
+                elif asset_path.endswith(".ico"):
+                    content_type = "image/x-icon"
+                elif asset_path.endswith(".png"):
+                    content_type = "image/png"
+                try:
+                    with open(asset_path, "rb") as f_asset:
+                        data = f_asset.read()
+                    self.send_response(200)
+                    self.send_header("Content-Type", content_type)
+                    self.send_header("Content-Length", str(len(data)))
+                    self.send_header("Cache-Control", "public, max-age=86400")
+                    self.end_headers()
+                    self.wfile.write(data)
+                    return
+                except Exception:
+                    pass
+
+        # 2. Rota raiz da Single-Page Application com injeção síncrona de estado e abas ativas
         if parsed.path in ("/", "/index.html"):
-            html_bytes = STITCH_SPA_HTML.encode("utf-8")
+            query_params = parse_qs(parsed.query)
+            tab_param = query_params.get("tab", [""])[0]
+            modal_param = query_params.get("modal", [""])[0]
+
+            state_data = self.controller.get_state_dict()
+            if self.controller.last_deleted_scan is not None:
+                d_res = self.controller.last_deleted_scan
+                state_data["deleted_scan"] = {
+                    "ok": d_res.ok,
+                    "target_path": d_res.target_path,
+                    "elapsed_ms": round(d_res.elapsed_ms, 1),
+                    "mft_accessible": d_res.mft_accessible,
+                    "mft_status_message": d_res.mft_status_message,
+                    "total_found": d_res.total_found,
+                    "recoverable_count": d_res.recoverable_count,
+                    "overwritten_count": d_res.overwritten_count,
+                    "mft_count": d_res.mft_count,
+                    "recycle_count": d_res.recycle_count,
+                    "entries": [
+                        {
+                            "entry_id": e.entry_id,
+                            "name": e.name,
+                            "original_path": e.original_path,
+                            "extension": e.extension,
+                            "size_bytes": e.size_bytes,
+                            "formatted_size": e.formatted_size,
+                            "deleted_timestamp": e.deleted_timestamp,
+                            "formatted_date": e.formatted_date,
+                            "source_type": e.source_type,
+                            "source_badge": e.source_badge,
+                            "category": e.category,
+                            "recoverability": e.recoverability,
+                            "recoverability_label": e.recoverability_label,
+                            "can_recover": e.can_recover,
+                            "is_resident": e.is_resident,
+                        }
+                        for e in d_res.entries
+                    ]
+                }
+            state_json = json.dumps(state_data).replace("</script>", "<\\/script>")
+            injected_script = f"""<script>
+window.__INITIAL_STATE__ = {state_json};
+window.__INITIAL_TAB__ = {json.dumps(tab_param)};
+window.__INITIAL_MODAL__ = {json.dumps(modal_param)};
+</script>
+"""
+            html_content = STITCH_SPA_HTML
+            if "</head>" in html_content:
+                html_content = html_content.replace("</head>", injected_script + "\n</head>", 1)
+            else:
+                html_content = injected_script + html_content
+
+            html_bytes = html_content.encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(html_bytes)))

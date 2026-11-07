@@ -22,7 +22,7 @@ Interface unificada composta por 10 telas e modais analiticos integrados ao moto
 
 - **Pastas Quentes (`pastas-quentes`):** Cartoes Bento de telemetria, filtros por categoria (Fotos, Videos, Documentos, Misto) e ordenacao por Relevancia Forense (0 a 100 pontos), Volume, Quantidade e Recencia.
 - **Arquivos Criticos (`arquivos-criticos`):** Classificacao em 10 categorias prioritarias (carteiras cripto, sementes BIP-39, bancos de dados, arquivos financeiros, codigos-fonte, bancos de senhas, backups e imagens de disco).
-- **Recuperacao Rapida de Arquivos Apagados (`apagados-rapidos`):** Mapeamento e reconstrucao de registros deletados na MFT do NTFS e no `$Recycle.Bin` sem varrer setores fisicos (Zero Deep Scan).
+- **Recuperacao Rapida de Arquivos Apagados (`arquivos-apagados`):** Mapeamento e reconstrucao de registros deletados na MFT do NTFS e no `$Recycle.Bin` sem varrer setores fisicos (Zero Deep Scan).
 - **Arvore de Usuarios e Atalhos (`usuarios-atalhos`):** Deteccao de perfis locais com navegacao direta para Desktop, Documents, Downloads, AppData, navegadores e chaves SSH.
 - **Linha do Tempo de Atividade (`linha-do-tempo`):** Distribuicao cronologica de modificacao de arquivos por ano, identificando picos de uso do equipamento.
 - **Log de Erros Fisicos e Bad Blocks (`log-erros`):** Contadores de incidentes de I/O, falhas de leitura fisica e exportacao de relatorios de diagnostico.
