@@ -174,6 +174,10 @@ tailwind.config = {
       </div>
     </div>
     <div class="flex items-center gap-space-xs">
+      <button onclick="openDiagnosticsModal()" class="h-6 px-space-sm flex items-center gap-1 rounded bg-surface-container hover:bg-surface-container-high text-primary font-label-caps text-label-caps uppercase transition-colors" title="Autoteste de Compatibilidade do Sistema Operacional">
+        <span class="material-symbols-outlined text-[13px]">health_and_safety</span>
+        <span>Diagnóstico</span>
+      </button>
       <button onclick="openSmartModal()" class="h-6 px-space-sm flex items-center gap-1 rounded bg-surface-container hover:bg-surface-container-high text-primary-fixed font-label-caps text-label-caps uppercase transition-colors" title="Abrir Diagnóstico S.M.A.R.T. Avançado">
         <span class="material-symbols-outlined text-[13px]">neurology</span>
         <span>S.M.A.R.T. Raw</span>
@@ -873,6 +877,81 @@ tailwind.config = {
 
   </div>
 </main>
+
+<!-- ============================================================================
+     MODAL DIAGNÓSTICO DO SISTEMA (COMPATIBILIDADE WINDOWS 10/11)
+     ============================================================================ -->
+<div id="modal-diagnostics" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-surface-container-lowest/85 backdrop-blur-md p-space-md">
+  <div class="w-full max-w-4xl max-h-[90vh] bg-surface-container-low rounded-lg shadow-2xl flex flex-col overflow-hidden border border-outline-variant/60">
+    <div class="h-11 px-space-md bg-surface-container-high flex items-center justify-between shrink-0">
+      <div class="flex items-center gap-space-sm min-w-0">
+        <span class="material-symbols-outlined text-primary text-[18px]">health_and_safety</span>
+        <span class="font-headline-sm text-headline-sm font-bold text-primary truncate">
+          AUTOTESTE DE COMPATIBILIDADE &amp; PRONTIDÃO DO SISTEMA OPERACIONAL
+        </span>
+      </div>
+      <div class="flex items-center gap-space-xs">
+        <button onclick="loadDiagnosticsData()" class="h-7 px-space-sm flex items-center gap-1 rounded bg-surface-container hover:bg-surface-bright text-primary font-data-mono-sm text-data-mono-sm" type="button">
+          <span class="material-symbols-outlined text-[14px]">refresh</span>
+          <span>Reexecutar</span>
+        </button>
+        <button onclick="closeDiagnosticsModal()" class="h-7 w-7 flex items-center justify-center rounded bg-error-container/40 hover:bg-error-container text-error hover:text-on-error" type="button">
+          <span class="material-symbols-outlined text-[16px]">close</span>
+        </button>
+      </div>
+    </div>
+    <div class="p-space-md bg-surface-container-lowest flex items-center justify-between border-b border-outline-variant/20 shrink-0">
+      <div class="flex items-center gap-space-sm">
+        <span class="font-label-caps text-label-caps uppercase text-on-surface-variant font-bold">Status do Ambiente:</span>
+        <span id="diag-overall-badge" class="font-label-caps text-label-caps px-space-sm py-0.5 rounded bg-secondary-container text-on-secondary-container font-bold">CONSULTANDO...</span>
+      </div>
+      <span id="diag-summary-text" class="font-data-mono-sm text-data-mono-sm text-on-surface-variant">Executando varredura de subsistemas...</span>
+    </div>
+    <div id="diag-checks-list" class="p-space-md overflow-y-auto space-y-space-sm flex-1">
+      <div class="text-center py-8 text-on-surface-variant">Carregando telemetria de ambiente...</div>
+    </div>
+    <div class="p-space-md bg-surface-container-high flex items-center justify-between shrink-0">
+      <span class="text-body-sm font-body-sm text-on-surface-variant">Geio DiskRadar v2.2.0 • Verificação passiva 100% segura</span>
+      <button onclick="closeDiagnosticsModal()" class="h-8 px-space-md rounded bg-surface-container hover:bg-surface-variant text-on-surface font-body-sm font-semibold" type="button">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================================
+     MODAL DE CONFIRMAÇÃO DE EXTRAÇÃO DE EVIDÊNCIA FORENSE
+     ============================================================================ -->
+<div id="modal-evidence-success" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-surface-container-lowest/85 backdrop-blur-md p-space-md">
+  <div class="w-full max-w-2xl bg-surface-container-low rounded-lg shadow-2xl flex flex-col overflow-hidden border border-secondary/40">
+    <div class="h-11 px-space-md bg-secondary-container text-on-secondary-container flex items-center justify-between shrink-0">
+      <div class="flex items-center gap-space-sm min-w-0 font-bold">
+        <span class="material-symbols-outlined text-[18px]">verified</span>
+        <span>EVIDÊNCIA EXTRAÍDA COM SUCESSO (CADEIA DE CUSTÓDIA)</span>
+      </div>
+      <button onclick="closeEvidenceModal()" class="h-7 w-7 flex items-center justify-center rounded hover:bg-black/20" type="button">
+        <span class="material-symbols-outlined text-[16px]">close</span>
+      </button>
+    </div>
+    <div class="p-space-md bg-surface-container-lowest space-y-space-md">
+      <div class="flex items-center gap-space-sm text-secondary font-bold font-body-md">
+        <span class="material-symbols-outlined">lock</span>
+        <span>Integridade Matemática Validada (SHA-256 Idêntico)</span>
+      </div>
+      <div class="space-y-space-xs font-data-mono-sm text-data-mono-sm bg-surface-container-low p-space-sm rounded">
+        <div><span class="text-on-surface-variant">Arquivo:</span> <strong id="evi-modal-name" class="text-on-surface"></strong></div>
+        <div class="truncate"><span class="text-on-surface-variant">Destino:</span> <code id="evi-modal-path" class="text-primary truncate select-all"></code></div>
+        <div class="truncate"><span class="text-on-surface-variant">Hash SHA-256:</span> <code id="evi-modal-sha" class="text-secondary truncate select-all"></code></div>
+        <div class="truncate"><span class="text-on-surface-variant">Manifesto:</span> <code id="evi-modal-manifest" class="text-on-surface-variant truncate select-all"></code></div>
+      </div>
+    </div>
+    <div class="p-space-md bg-surface-container-high flex items-center justify-between shrink-0">
+      <button id="evi-btn-open-folder" onclick="" class="h-8 px-space-md rounded bg-secondary-container hover:bg-secondary text-on-secondary-container font-body-sm font-bold flex items-center gap-1" type="button">
+        <span class="material-symbols-outlined text-[14px]">folder_open</span>
+        <span>Abrir Pasta de Evidências</span>
+      </button>
+      <button onclick="closeEvidenceModal()" class="h-8 px-space-md rounded bg-surface-container hover:bg-surface-variant text-on-surface font-body-sm font-semibold" type="button">Fechar</button>
+    </div>
+  </div>
+</div>
 
 <!-- ============================================================================
      MODAL 8: DIAGNÓSTICO S.M.A.R.T. AVANÇADO (ATRIBUTOS ATA/NVMe)
@@ -1646,6 +1725,10 @@ function renderCriticalItems() {
             <span class="material-symbols-outlined text-[14px]">folder_open</span>
             <span>Abrir no Explorer</span>
           </button>
+          <button onclick="exportEvidenceItem(this.getAttribute('data-path'))" data-path="${escapeHtml(c.full_path)}" class="w-full h-7 px-space-sm bg-primary/20 hover:bg-primary text-primary hover:text-on-primary rounded flex items-center justify-center gap-space-xs text-body-sm font-body-sm font-bold transition-colors" title="Exportar Cópia Segura com Hash SHA-256 e Cadeia de Custódia" type="button">
+            <span class="material-symbols-outlined text-[14px]">save</span>
+            <span>Extrair Evidência</span>
+          </button>
         </div>
       </div>
     </article>`;
@@ -2186,9 +2269,99 @@ async function shutdownApp() {
   }, 450);
 }
 
+/* ============================================================================
+   MODAL DIAGNÓSTICO DO SISTEMA (COMPATIBILIDADE WINDOWS)
+   ============================================================================ */
+async function openDiagnosticsModal() {
+  document.getElementById('modal-diagnostics').classList.remove('hidden');
+  await loadDiagnosticsData();
+}
+
+function closeDiagnosticsModal() {
+  document.getElementById('modal-diagnostics').classList.add('hidden');
+}
+
+async function loadDiagnosticsData() {
+  const container = document.getElementById('diag-checks-list');
+  const badge = document.getElementById('diag-overall-badge');
+  const summary = document.getElementById('diag-summary-text');
+  container.innerHTML = '<div class="text-center py-6 text-on-surface-variant font-data-mono-sm">Consultando subsistemas e políticas WMI do Windows...</div>';
+  badge.className = 'font-label-caps text-label-caps px-space-sm py-0.5 rounded bg-surface-container text-on-surface-variant font-bold';
+  badge.innerText = 'CONSULTANDO...';
+
+  try {
+    const res = await fetch('/api/system_diagnostics').then(r => r.json());
+    if (res.status === 'READY') {
+      badge.className = 'font-label-caps text-label-caps px-space-sm py-0.5 rounded bg-secondary-container text-on-secondary-container font-bold';
+      badge.innerText = 'PRONTO / OPERACIONAL';
+      summary.innerText = `Todos os subsistemas essenciais estão validados (${res.total_checks} verificações).`;
+    } else {
+      badge.className = 'font-label-caps text-label-caps px-space-sm py-0.5 rounded bg-error-container text-on-error-container font-bold';
+      badge.innerText = 'ATENÇÃO / REQUER AJUSTE';
+      summary.innerText = `Alguns subsistemas podem operar com limitações (${res.total_checks} verificações).`;
+    }
+
+    container.innerHTML = (res.checks || []).map(c => {
+      let statusBadge = '<span class="px-2 py-0.5 rounded bg-secondary-container text-on-secondary-container font-bold text-label-badge font-label-badge">PASS</span>';
+      let borderCls = 'border-secondary/40';
+      if (c.status === 'WARN' || c.status === 'INFO') {
+        statusBadge = '<span class="px-2 py-0.5 rounded bg-surface-container-high text-primary font-bold text-label-badge font-label-badge">' + escapeHtml(c.status) + '</span>';
+        borderCls = 'border-primary/40';
+      } else if (c.status === 'FAIL') {
+        statusBadge = '<span class="px-2 py-0.5 rounded bg-error-container text-on-error-container font-bold text-label-badge font-label-badge">FAIL</span>';
+        borderCls = 'border-error/60';
+      }
+
+      return `
+        <div class="bg-surface-container p-space-sm rounded border-l-2 ${borderCls} flex items-center justify-between gap-space-md">
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-space-xs">
+              <strong class="font-headline-sm text-headline-sm text-on-surface">${escapeHtml(c.name)}</strong>
+              ${statusBadge}
+            </div>
+            <div class="font-data-mono-sm text-data-mono-sm text-on-surface-variant mt-0.5 truncate">${escapeHtml(c.message)}</div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  } catch (err) {
+    container.innerHTML = `<div class="p-space-md text-error font-bold">Falha ao consultar diagnóstico: ${escapeHtml(err.message)}</div>`;
+  }
+}
+
+/* ============================================================================
+   EXTRAÇÃO SEGURA DE EVIDÊNCIAS FORENSES (CADEIA DE CUSTÓDIA COM SHA-256)
+   ============================================================================ */
+async function exportEvidenceItem(filePath) {
+  if (!filePath) return;
+  showToast('Iniciando extração forense Read-Only e cálculo de Hash SHA-256...');
+  try {
+    const res = await apiPost('/api/export_evidence', { path: filePath });
+    if (res.ok) {
+      document.getElementById('evi-modal-name').innerText = res.file_name;
+      document.getElementById('evi-modal-path').innerText = res.dest_path;
+      document.getElementById('evi-modal-sha').innerText = res.sha256;
+      document.getElementById('evi-modal-manifest').innerText = res.manifest_path;
+      document.getElementById('evi-btn-open-folder').onclick = () => openInExplorer(res.destination_dir);
+      document.getElementById('modal-evidence-success').classList.remove('hidden');
+      showToast('Evidência extraída e validada!');
+    } else {
+      showToast('Falha na extração: ' + (res.error || 'Erro desconhecido'));
+    }
+  } catch (err) {
+    showToast('Erro ao comunicar com o servidor: ' + err.message);
+  }
+}
+
+function closeEvidenceModal() {
+  document.getElementById('modal-evidence-success').classList.add('hidden');
+}
+
 // Fechar modais com tecla ESC
 document.addEventListener('keydown', (ev) => {
   if (ev.key === 'Escape') {
+    closeDiagnosticsModal();
+    closeEvidenceModal();
     closeSmartModal();
     closeExportModal();
     closeHexModal();

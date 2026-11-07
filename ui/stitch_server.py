@@ -1009,6 +1009,19 @@ class _StitchHTTPHandler(BaseHTTPRequestHandler):
             self._send_json({"ok": ok, "path": path})
             return
 
+        if parsed.path == "/api/export_evidence":
+            from core.evidence import export_evidence_file
+            path = str(body.get("path") or "").strip()
+            res = export_evidence_file(path)
+            if res.get("ok"):
+                self.controller._append_log(
+                    "[EVIDENCIA]",
+                    "crit",
+                    f"📥 EVIDÊNCIA EXTRAÍDA: {res['file_name']} • SHA-256: {res['sha256'][:16]}... • Salva em: {res['dest_path']}"
+                )
+            self._send_json(res)
+            return
+
         if parsed.path == "/api/hex_inspect":
             path = str(body.get("path") or "").strip()
             offset = int(body.get("offset") or 0)

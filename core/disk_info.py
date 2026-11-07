@@ -125,6 +125,40 @@ def list_available_drives() -> List[Dict[str, str]]:
     except Exception:
         pass
 
+    # No Windows, detecta discos físicos (Get-Disk) que possam ser RAW ou sem letra montada
+    if sys.platform == "win32":
+        try:
+            ps_cmd = [
+                "powershell", "-NoProfile", "-NonInteractive", "-Command",
+                "Get-Disk | Select-Object Number, FriendlyName, Size, PartitionStyle, OperationalStatus | ConvertTo-Json"
+            ]
+            startupinfo = None
+            if hasattr(subprocess, "STARTUPINFO"):
+                startupinfo = subprocess.STARTUPINFO()
+                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            res = subprocess.run(ps_cmd, capture_output=True, text=True, timeout=3, startupinfo=startupinfo)
+            if res.returncode == 0 and res.stdout.strip():
+                import json
+                raw_data = json.loads(res.stdout)
+                disks = raw_data if isinstance(raw_data, list) else [raw_data]
+                for d in disks:
+                    num = d.get("Number")
+                    if num is not None:
+                        phys_path = f"\\\\.\\PhysicalDrive{num}"
+                        if phys_path not in seen_mounts:
+                            seen_mounts.add(phys_path)
+                            model = str(d.get("FriendlyName") or f"Disco Físico {num}")
+                            size = int(d.get("Size") or 0)
+                            part_style = str(d.get("PartitionStyle") or "RAW")
+                            drives.append({
+                                "path": phys_path,
+                                "label": f"{phys_path} - {model} ({format_size(size)} - {part_style})",
+                                "fstype": part_style,
+                                "device": phys_path,
+                            })
+        except Exception:
+            pass
+
     # No Linux, verifica também subpastas dentro de /mnt e /media caso existam HDs montados lá
     if sys.platform != "win32":
         for base_mnt in ("/mnt", "/media"):
@@ -174,13 +208,25 @@ def _query_windows_hardware_info(drive_path: str) -> Dict[str, object]:
         "pending_sectors": None,
     }
 
-    drive_letter = os.path.splitdrive(os.path.abspath(drive_path))[0].replace(":", "").strip()
-    if not drive_letter:
-        return result
+    disk_num_literal = ""
+    drive_letter = ""
+    if drive_path.lower().startswith(r"\\.\physicaldrive"):
+        disk_num_literal = drive_path[17:].strip()
+    else:
+        drive_letter = os.path.splitdrive(os.path.abspath(drive_path))[0].replace(":", "").strip()
+        if not drive_letter:
+            return result
 
     ps_script = f"""
 $ErrorActionPreference = 'SilentlyContinue'
-$part = Get-Partition -DriveLetter '{drive_letter}' | Select-Object -First 1
+$targetDiskNum = $null
+if ('{disk_num_literal}' -ne '') {{
+    $targetDiskNum = [int]'{disk_num_literal}'
+}} else {{
+    $part = Get-Partition -DriveLetter '{drive_letter}' | Select-Object -First 1
+    if ($null -ne $part) {{ $targetDiskNum = $part.DiskNumber }}
+}}
+
 $obj = [PSCustomObject]@{{
     Model = ''
     SerialNumber = ''
@@ -196,10 +242,10 @@ $obj = [PSCustomObject]@{{
     PendingSectors = $null
 }}
 
-if ($null -ne $part) {{
+if ($null -ne $targetDiskNum) {{
     # 1. Tenta API Storage moderna (Get-Disk e Get-PhysicalDisk)
-    $disk = Get-Disk -Number $part.DiskNumber | Select-Object -First 1
-    $phys = Get-PhysicalDisk | Where-Object {{ $_.DeviceId -eq [string]$part.DiskNumber }} | Select-Object -First 1
+    $disk = Get-Disk -Number $targetDiskNum | Select-Object -First 1
+    $phys = Get-PhysicalDisk | Where-Object {{ $_.DeviceId -eq [string]$targetDiskNum }} | Select-Object -First 1
 
     if ($null -ne $phys) {{
         $obj.Model = [string]$phys.FriendlyName
@@ -228,7 +274,7 @@ if ($null -ne $part) {{
 
     # 2. Fallback WMI/CIM que NUNCA exige privilégio de Administrador no Windows
     if (-not $obj.SerialNumber -or $obj.SerialNumber.Trim() -eq '' -or $obj.SerialNumber -eq 'N/A' -or -not $obj.Model) {{
-        $wmi = Get-CimInstance Win32_DiskDrive | Where-Object {{ $_.Index -eq $part.DiskNumber }} | Select-Object -First 1
+        $wmi = Get-CimInstance Win32_DiskDrive | Where-Object {{ $_.Index -eq $targetDiskNum }} | Select-Object -First 1
         if ($null -ne $wmi) {{
             if (-not $obj.Model) {{ $obj.Model = [string]$wmi.Model }}
             if ($wmi.SerialNumber) {{ $obj.SerialNumber = [string]$wmi.SerialNumber.Trim() }}
@@ -241,7 +287,7 @@ if ($null -ne $part) {{
     try {{
         $smartList = Get-CimInstance -Namespace root\\wmi -ClassName MSStorageDriver_ATAPISmartData
         $smart = if ($null -ne $smartList) {{
-            $matched = $smartList | Where-Object {{ $_.InstanceName -match "Disk$($part.DiskNumber)" }} | Select-Object -First 1
+            $matched = $smartList | Where-Object {{ $_.InstanceName -match "Disk$targetDiskNum" }} | Select-Object -First 1
             if ($null -ne $matched) {{ $matched }} else {{ $smartList | Select-Object -First 1 }}
         }} else {{ $null }}
 
@@ -590,8 +636,20 @@ def get_disk_badge_info(target_path: str, query_hw: bool = True) -> DiskBadgeInf
     Constrói o objeto DiskBadgeInfo para a unidade ou pasta selecionada.
     Se query_hw=False, retorna imediatamente em microssegundos (ideal para UI fluida).
     """
-    abs_path = os.path.abspath(target_path)
+    is_raw = target_path.lower().startswith(r"\\.\physicaldrive") or target_path.startswith("/dev/sd")
+    if is_raw:
+        abs_path = target_path
+    else:
+        abs_path = os.path.abspath(target_path)
     badge = DiskBadgeInfo(target_path=abs_path, mountpoint=abs_path)
+
+    if is_raw:
+        badge.filesystem = "RAW / Físico"
+        if query_hw:
+            fill_hardware_info(badge)
+        badge.detected_users = []
+        badge.last_activity_date = "N/A (Dispositivo Físico Bruto)"
+        return badge
 
     # 1. Capacidade via psutil (instantâneo)
     try:

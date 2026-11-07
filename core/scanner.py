@@ -81,7 +81,10 @@ class AsyncDiskScanner:
     """
 
     def __init__(self, target_path: str, event_queue: queue.Queue) -> None:
-        self.target_path = os.path.abspath(target_path)
+        if target_path.lower().startswith(r"\\.\physicaldrive") or target_path.startswith("/dev/"):
+            self.target_path = target_path
+        else:
+            self.target_path = os.path.abspath(target_path)
         self.event_queue = event_queue
         self._stop_event = threading.Event()
         self._thread: Optional[threading.Thread] = None
@@ -154,6 +157,30 @@ class AsyncDiskScanner:
             "type": "SCAN_STARTED",
             "root_path": self.target_path,
         })
+
+        # BLINDAGEM DISCOS FÍSICOS BRUTOS / RAW
+        if self.target_path.lower().startswith(r"\\.\physicaldrive") or self.target_path.startswith("/dev/"):
+            self._record_error(
+                errors,
+                self.target_path,
+                OSError(
+                    "O dispositivo selecionado é um disco físico RAW sem sistema de arquivos montado. "
+                    "A varredura por pastas não é aplicável. "
+                    "Utilize o Inspetor Hexadecimal para leitura e auditoria direta de setores LBA."
+                ),
+            )
+            self.is_running = False
+            result = ScanResult(
+                root_path=self.target_path,
+                was_cancelled=False,
+                elapsed_seconds=0.1,
+                scanned_files=0,
+                scanned_dirs=0,
+                total_errors_count=1,
+                errors=errors,
+            )
+            self.event_queue.put({"type": "SCAN_FINISHED", "result": result})
+            return
 
         # ======================================================================
         # FASE 0: SONDAGEM CIRÚRGICA DE NAVEGADORES, SESSÕES E CARTEIRAS CRIPTO

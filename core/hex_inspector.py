@@ -128,11 +128,13 @@ def inspect_file_sector(
         bytes_read=0,
     )
 
-    if not os.path.exists(clean_path):
+    is_raw_device = clean_path.lower().startswith(r"\\.\physicaldrive") or clean_path.startswith("/dev/sd")
+
+    if not is_raw_device and not os.path.exists(clean_path):
         result.error_message = "Arquivo ou caminho não encontrado no disco."
         return result
 
-    if os.path.isdir(clean_path):
+    if not is_raw_device and os.path.isdir(clean_path):
         # Se for um diretório (ex: Lote XML ou pasta de perfil), tenta inspecionar o primeiro arquivo dentro dele
         try:
             with os.scandir(clean_path) as it:
@@ -149,12 +151,17 @@ def inspect_file_sector(
             result.error_message = "O caminho selecionado é um diretório sem arquivos diretos para leitura Hex."
             return result
 
-    try:
-        st = os.stat(clean_path)
-        result.file_size = st.st_size
-    except OSError as exc:
-        result.error_message = f"Erro ao ler metadados (stat): {exc}"
-        return result
+    if not is_raw_device:
+        try:
+            st = os.stat(clean_path)
+            result.file_size = st.st_size
+        except OSError as exc:
+            result.error_message = f"Erro ao ler metadados (stat): {exc}"
+            return result
+    else:
+        result.file_size = 500_000_000_000
+        result.magic_signature = "Disco Físico / Partição RAW"
+        result.magic_details = "Dispositivo de armazenamento físico direto (Setores LBA)"
 
     try:
         with open(clean_path, "rb") as f:
@@ -173,6 +180,16 @@ def inspect_file_sector(
 
             f.seek(offset)
             data = f.read(length)
+    except PermissionError as exc:
+        if is_raw_device:
+            result.error_message = (
+                f"ACESSO NEGADO AO DISCO FÍSICO ({exc}): "
+                "A leitura direta de setores físicos brutos (\\\\.\\PhysicalDrive) no Windows "
+                "exige privilégios de Administrador. Execute o programa como Administrador."
+            )
+        else:
+            result.error_message = f"ACESSO NEGADO (Permissão insuficiente): {exc}"
+        return result
     except OSError as exc:
         result.error_message = f"FALHA DE LEITURA I/O (Possível Bad Block / Permissão): {exc}"
         # Gera linhas sinalizadas com erro de leitura para visualização forense
