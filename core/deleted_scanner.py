@@ -195,6 +195,7 @@ def scan_recycle_bin_deleted(target_path: str) -> List[DeletedFileEntry]:
     is_drive_root = (clean_target == drive_root) or (clean_target.rstrip("\\/") == (os.path.splitdrive(clean_target)[0] or "").rstrip("\\/"))
 
     candidate_dirs: List[str] = []
+    seen_candidate_norms: Set[str] = set()
     roots_to_check = [clean_target]
     if is_drive_root and drive_root and drive_root not in roots_to_check:
         roots_to_check.append(drive_root)
@@ -202,14 +203,21 @@ def scan_recycle_bin_deleted(target_path: str) -> List[DeletedFileEntry]:
     for r_root in roots_to_check:
         for name in ("$Recycle.Bin", "$RECYCLE.BIN", "RECYCLER", "Recycled"):
             candidate = os.path.join(r_root, name)
-            if os.path.isdir(candidate) and candidate not in candidate_dirs:
-                candidate_dirs.append(candidate)
+            if os.path.isdir(candidate):
+                norm_c = os.path.normcase(os.path.realpath(candidate))
+                if norm_c not in seen_candidate_norms:
+                    seen_candidate_norms.add(norm_c)
+                    candidate_dirs.append(candidate)
 
     # Se o target_path já for uma pasta dentro ou for a própria lixeira
-    if os.path.isdir(clean_target) and clean_target not in candidate_dirs:
-        if "$recycle.bin" in clean_target.lower() or "recycler" in clean_target.lower():
-            candidate_dirs.append(clean_target)
+    if os.path.isdir(clean_target):
+        norm_t = os.path.normcase(os.path.realpath(clean_target))
+        if norm_t not in seen_candidate_norms:
+            if "$recycle.bin" in clean_target.lower() or "recycler" in clean_target.lower():
+                seen_candidate_norms.add(norm_t)
+                candidate_dirs.append(clean_target)
 
+    seen_entry_ids: Set[str] = set()
     for r_dir in candidate_dirs:
         try:
             for root, dirs, files in os.walk(r_dir):
@@ -276,6 +284,9 @@ def scan_recycle_bin_deleted(target_path: str) -> List[DeletedFileEntry]:
                             can_rec = False
 
                         unique_id = f"REC_{hashlib.md5(i_path.encode('utf-8', errors='ignore')).hexdigest()[:10]}"
+                        if unique_id in seen_entry_ids:
+                            continue
+                        seen_entry_ids.add(unique_id)
                         entries.append(
                             DeletedFileEntry(
                                 entry_id=unique_id,
