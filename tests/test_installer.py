@@ -229,6 +229,45 @@ class TestInstallerAndVersioning(unittest.TestCase):
         self.assertIn('"%PY_EXE%" %PY_ARGS% -m core.installer --uninstall', des_content)
         self.assertIn("Área de Trabalho", des_content)
 
+    def test_08_file_version_info_txt_validity(self):
+        """Valida que o arquivo de versão do Windows PE existe e define os atributos corretos."""
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        ver_file = os.path.join(base_dir, "installer", "file_version_info.txt")
+        self.assertTrue(os.path.isfile(ver_file), f"Arquivo não encontrado: {ver_file}")
+
+        with open(ver_file, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        self.assertIn("(2, 3, 0, 0)", content)
+        self.assertIn("Geio Forensics & Security", content)
+        self.assertIn("DiskRadar.exe", content)
+
+    def test_09_main_live_ota_override_and_single_instance(self):
+        """Valida o carregador híbrido de OTA e proteção Single-Instance no main.py."""
+        import main
+
+        app_dir = main._enable_live_ota_override()
+        self.assertTrue(os.path.isdir(app_dir))
+        self.assertEqual(main.sys.path[0], app_dir)
+
+        # Checa foco com porta inativa (deve retornar False sem crash)
+        has_instance = main._check_existing_instance_and_focus(port=59998)
+        self.assertFalse(has_instance)
+
+    def test_10_github_actions_workflow_yaml(self):
+        """Valida a existência e sintaxe essencial do workflow CI/CD do GitHub Actions."""
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        wf_file = os.path.join(base_dir, ".github", "workflows", "build_windows_installer.yml")
+        self.assertTrue(os.path.isfile(wf_file), f"Workflow não encontrado: {wf_file}")
+
+        with open(wf_file, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        self.assertIn("windows-latest", content)
+        self.assertIn("iscc", content)
+        self.assertIn("pyinstaller", content)
+        self.assertIn("Geio-DiskRadar-Windows-Installer", content)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,12 +1,21 @@
-# 📡 Geio DiskRadar (v2.2.0) — Triador e Indexador Read-Only de HDs e SSDs
+# 📡 Geio DiskRadar (v2.3.0) — Triador Forense e Indexador Read-Only de HDs e SSDs
 
 Software Desktop em Python 3.11+ para triagem ultra-rápida, forense e **100% Read-Only (somente leitura)** de HDs e SSDs conectados via Dock USB/SATA. Projetado para operadores de bancada, recuperadores de ativos e técnicos que precisam avaliar lotes de discos descartados ou sucata.
 
-O **DiskRadar v2.2.0** traz a nova interface gráfica **Stitch "Cyber-Forensic Precision"** (10 telas e modais unificados) acoplada ao motor Python Read-Only (`core/`), lendo metadados e blocos iniciais (`os.scandir` / `stat` / `rb`) sem nunca alterar, criar, mover ou deletar dados na unidade analisada.
+O **DiskRadar v2.3.0** traz a interface gráfica **Stitch "Cyber-Forensic Precision"** (10 telas e modais unificados), motor de **Recuperação Rápida de Arquivos Apagados** (NTFS `$MFT` & `$Recycle.Bin` sem Deep Scan) e **Instalador Canônico com Auto-Update OTA via GitHub**.
 
 ---
 
-## ✨ Principais Funcionalidades (v2.2.0)
+## 📥 Download & Instalação Rápida no Windows (1-Clique)
+
+| Método | Como Usar | Pré-requisitos |
+|---|---|---|
+| **⭐ Instalador Oficial Único (`.exe`)** | [**Baixar Geio_DiskRadar_Setup_v2.3.0.exe**](https://github.com/6310/diskradar/releases/latest) | **Nenhum!** Não precisa de Python nem terminal. Basta dar dois cliques e avançar. |
+| **⚡ Instalador Automatizado (`.bat`)** | Baixe o repositório em ZIP, extraia e dê 2 cliques em **`Instalar_DiskRadar.bat`**. | Configura tudo sozinho (e instala o Python via `winget` se necessário). |
+
+---
+
+## ✨ Principais Funcionalidades (v2.3.0)
 
 1. **Estação Forense Stitch "Cyber-Forensic Precision" (10 Telas & Modais):**
    - **Tela 1 — Pastas Quentes (`pastas-quentes`):** 4 cartões Bento KPI, filtros por tipo (`TODAS`, `FOTOS`, `VÍDEOS`, `DOCS`, `MISTO`), ordenação por Score Forense (`0-100 pts`), Volume, Arquivos ou Recência, e botões `Copiar` e `Explorar` (`explorer.exe`).
@@ -76,8 +85,10 @@ python3 main.py --classic  # Abre a Interface CustomTkinter Clássica
 ```
 
 ### No Windows:
-- **Execução direta (sem compilar):** dê dois cliques em `Executar_DiskRadar.bat`.
-- **Gerar o executável único `.exe`:** dê dois cliques em `Compilar_EXE.bat`. O binário standalone será gerado em `dist\DiskRadar-v2.2.0.exe` e copiado automaticamente para a raiz.
+- **Instalador Oficial:** Baixe e execute `Geio_DiskRadar_Setup_v2.3.0.exe` (não precisa de Python).
+- **Instalador via Scripts:** Dê dois cliques em `Instalar_DiskRadar.bat` para instalar centralizado com atalhos.
+- **Execução direta portátil:** Dê dois cliques em `Executar_DiskRadar.bat`.
+- **Compilar o instalador e binário localmente:** Dê dois cliques em `Compilar_EXE.bat`.
 
 ---
 

@@ -65,10 +65,23 @@ if exist "C:\Program Files\Python311\python.exe" (
     goto :PYTHON_OK
 )
 
+REM Fallback inteligente para usuarios leigos: instala o Python automaticamente via winget
+where winget.exe >nul 2>&1
+if %errorlevel% equ 0 (
+    echo [INFO] Python 3 nao detectado. Instalando automaticamente para voce via Windows winget...
+    echo Isso pode levar cerca de 1 a 2 minutos. Aguarde...
+    winget install -e --id Python.Python.3.12 --silent --accept-package-agreements --accept-source-agreements >nul 2>&1
+    if exist "%LOCALAPPDATA%\Programs\Python\Python312\python.exe" (
+        set "PY_EXE=%LOCALAPPDATA%\Programs\Python\Python312\python.exe"
+        goto :PYTHON_OK
+    )
+)
+
 :PYTHON_OK
 if not defined PY_EXE (
     echo [ERRO FATAL] Python 3 nao encontrado neste computador!
-    echo Instale o Python 3 marcando a opcao "Add python.exe to PATH".
+    echo Recomendamos baixar o instalador unico "Geio_DiskRadar_Setup_v2.3.0.exe"
+    echo nas Releases do GitHub (ele ja vem com tudo embutido e nao precisa de Python).
     pause
     exit /b 1
 )

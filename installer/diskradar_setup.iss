@@ -47,6 +47,7 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 
 ; Limpeza transacional segura de código antigo antes de extrair a nova versão (sem race condition!)
 [InstallDelete]
+Type: filesandordirs; Name: "{app}\_internal"
 Type: filesandordirs; Name: "{app}\core"
 Type: filesandordirs; Name: "{app}\ui"
 Type: files; Name: "{app}\DiskRadar-*.exe"
@@ -56,6 +57,11 @@ Type: files; Name: "{userprograms}\DiskRadar*.lnk"
 Type: files; Name: "{userprograms}\Geio DiskRadar v*.lnk"
 
 [Files]
+; 1. Se compilado com PyInstaller (--onedir), inclui o binario nativo autonomo com Python embutido
+; (Permite rodar 100% sem Python instalado na maquina do usuario)
+Source: "..\dist\DiskRadar\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: DirExists(ExpandConstant('{src}\..\dist\DiskRadar'))
+
+; 2. Modulos e scripts para permitir execucao hibrida, fallback e atualizacao OTA continua do GitHub
 Source: "..\main.py"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\version.json"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\requirements.txt"; DestDir: "{app}"; Flags: ignoreversion
@@ -68,11 +74,17 @@ Source: "..\core\*"; DestDir: "{app}\core"; Flags: ignoreversion recursesubdirs 
 Source: "..\ui\*"; DestDir: "{app}\ui"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{group}\{#MyAppName}"; Filename: "{app}\Executar_DiskRadar.bat"; WorkingDir: "{app}"; IconFilename: "{app}\ui\assets\diskradar.ico"
-Name: "{userdesktop}\{#MyAppName}"; Filename: "{app}\Executar_DiskRadar.bat"; WorkingDir: "{app}"; IconFilename: "{app}\ui\assets\diskradar.ico"; Tasks: desktopicon
+; Se o binario compilado existir, cria atalho direto para DiskRadar.exe (abertura instantanea)
+Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; IconFilename: "{app}\ui\assets\diskradar.ico"; Check: FileExists(ExpandConstant('{app}\{#MyAppExeName}'))
+Name: "{userdesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; IconFilename: "{app}\ui\assets\diskradar.ico"; Tasks: desktopicon; Check: FileExists(ExpandConstant('{app}\{#MyAppExeName}'))
+
+; Fallback caso tenha sido instalado apenas a partir do pacote de scripts
+Name: "{group}\{#MyAppName}"; Filename: "{app}\Executar_DiskRadar.bat"; WorkingDir: "{app}"; IconFilename: "{app}\ui\assets\diskradar.ico"; Check: not FileExists(ExpandConstant('{app}\{#MyAppExeName}'))
+Name: "{userdesktop}\{#MyAppName}"; Filename: "{app}\Executar_DiskRadar.bat"; WorkingDir: "{app}"; IconFilename: "{app}\ui\assets\diskradar.ico"; Tasks: desktopicon; Check: not FileExists(ExpandConstant('{app}\{#MyAppExeName}'))
 
 [Run]
-Filename: "{app}\Executar_DiskRadar.bat"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent shellexec
+Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent; Check: FileExists(ExpandConstant('{app}\{#MyAppExeName}'))
+Filename: "{app}\Executar_DiskRadar.bat"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent shellexec; Check: not FileExists(ExpandConstant('{app}\{#MyAppExeName}'))
 
 [Code]
 function ParseSemVer(VStr: String): Int64;

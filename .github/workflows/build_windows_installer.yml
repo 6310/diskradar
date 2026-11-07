@@ -1,0 +1,87 @@
+name: Build & Release Windows Installer
+
+on:
+  push:
+    tags:
+      - 'v*'
+    branches:
+      - main
+    paths:
+      - 'main.py'
+      - 'core/**'
+      - 'ui/**'
+      - 'installer/**'
+      - 'version.json'
+      - 'requirements.txt'
+      - '.github/workflows/build_windows_installer.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-installer:
+    name: Build Standalone Windows Installer (.exe)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install Build Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+
+      - name: Run Test Suite
+        run: |
+          python -m unittest discover -s tests -v
+
+      - name: Generate Official Forensic Radar Icon (.ico)
+        run: |
+          python -c "from core.installer import generate_cyber_radar_ico; generate_cyber_radar_ico('ui/assets/diskradar.ico')"
+
+      - name: Compile Standalone Executable with PyInstaller (--onedir)
+        run: |
+          pyinstaller --clean --noconfirm --onedir --windowed `
+            --name "DiskRadar" `
+            --icon "ui\assets\diskradar.ico" `
+            --version-file "installer\file_version_info.txt" `
+            --collect-all customtkinter `
+            main.py
+
+      - name: Compile Inno Setup 6 Installer (.exe)
+        run: |
+          iscc /O"dist_installer" installer\diskradar_setup.iss
+
+      - name: Calculate SHA-256 Checksums
+        run: |
+          Get-ChildItem -Path dist_installer\*.exe | ForEach-Object {
+            $hash = (Get-FileHash -Path $_.FullName -Algorithm SHA256).Hash
+            "$hash  $($_.Name)" | Out-File -FilePath dist_installer\SHA256SUMS.txt -Append -Encoding utf8
+          }
+          Get-Content dist_installer\SHA256SUMS.txt
+
+      - name: Upload Installer as Workflow Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Geio-DiskRadar-Windows-Installer
+          path: dist_installer/
+          retention-days: 14
+
+      - name: Create or Update GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist_installer/*.exe
+            dist_installer/SHA256SUMS.txt
+          generate_release_notes: true
+          draft: false
+          prerelease: false
