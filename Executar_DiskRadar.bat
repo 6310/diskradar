@@ -5,7 +5,7 @@ cd /d "%~dp0"
 if "%~1"=="--internal-run" goto :INTERNAL_RUN
 
 echo ============================================================================
-echo   GEIO DISKRADAR v2.2.0 - INICIANDO EXECUCAO DIRETA
+echo   GEIO DISKRADAR v2.3.0 - INICIANDO EXECUCAO DIRETA
 echo ============================================================================
 echo.
 cmd.exe /c ""%~f0" --internal-run" > "%~dp0execucao.log" 2>&1

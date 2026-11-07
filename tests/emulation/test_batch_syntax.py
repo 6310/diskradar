@@ -23,8 +23,8 @@ class TestBatchScriptsSyntax(unittest.TestCase):
         with open(bat_path, "r", encoding="latin-1", errors="replace") as f:
             content = f.read()
 
-        # 1. Deve possuir versão 2.2.0
-        self.assertIn("2.2.0", content, "Compilar_EXE.bat deve referenciar a versão 2.2.0.")
+        # 1. Deve possuir versão 2.3.0
+        self.assertIn("2.3.0", content, "Compilar_EXE.bat deve referenciar a versão 2.3.0.")
 
         # 2. Deve coletar CustomTkinter
         self.assertIn("--collect-all customtkinter", content, "PyInstaller deve incluir --collect-all customtkinter.")
@@ -44,6 +44,16 @@ class TestBatchScriptsSyntax(unittest.TestCase):
 
         # 2. Deve invocar main.py
         self.assertIn("main.py", content)
+
+    def test_instalar_diskradar_bat_syntax(self):
+        bat_path = os.path.join(BASE_DIR, "Instalar_DiskRadar.bat")
+        self.assertTrue(os.path.isfile(bat_path), f"Arquivo não encontrado: {bat_path}")
+
+        with open(bat_path, "r", encoding="utf-8", errors="replace") as f:
+            content = f.read()
+
+        self.assertIn("core.installer --install", content)
+        self.assertIn("if errorlevel 1 goto", content)
 
 
 if __name__ == "__main__":

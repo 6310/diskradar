@@ -164,7 +164,7 @@ tailwind.config = {
   <div class="h-7 bg-surface-container-lowest flex items-center justify-between px-space-md border-b border-outline-variant/20">
     <div class="flex items-center gap-space-md">
       <span class="material-symbols-outlined text-primary-fixed-dim text-[15px]">radar</span>
-      <span class="font-label-caps text-label-caps uppercase tracking-wider text-on-surface-variant">Geio DiskRadar // Workstation Engine v2.2.0</span>
+      <span class="font-label-caps text-label-caps uppercase tracking-wider text-on-surface-variant">Geio DiskRadar // Workstation Engine v2.3.0</span>
       <div class="flex items-center gap-space-xs px-space-sm py-0.5 rounded bg-surface-container-high">
         <span class="h-1.5 w-1.5 rounded-full bg-secondary animate-pulse"></span>
         <span class="font-label-caps text-label-caps uppercase text-secondary font-bold">100% READ-ONLY SAFEGUARD ACTIVE</span>
@@ -174,6 +174,10 @@ tailwind.config = {
       </div>
     </div>
     <div class="flex items-center gap-space-xs">
+      <button onclick="openUpdaterModal()" class="h-6 px-space-sm flex items-center gap-1 rounded bg-surface-container hover:bg-surface-container-high text-secondary font-label-caps text-label-caps uppercase transition-colors" title="Gerenciador de Instalação Única e Atualização de Versão">
+        <span class="material-symbols-outlined text-[13px]">system_update_alt</span>
+        <span>Instalação &amp; Update</span>
+      </button>
       <button onclick="openDiagnosticsModal()" class="h-6 px-space-sm flex items-center gap-1 rounded bg-surface-container hover:bg-surface-container-high text-primary font-label-caps text-label-caps uppercase transition-colors" title="Autoteste de Compatibilidade do Sistema Operacional">
         <span class="material-symbols-outlined text-[13px]">health_and_safety</span>
         <span>Diagnóstico</span>
@@ -197,7 +201,7 @@ tailwind.config = {
     <div class="flex items-center gap-space-md flex-1 min-w-0">
       <div class="flex items-center gap-space-xs shrink-0">
         <span class="font-headline-sm text-headline-sm text-primary tracking-tight font-bold">Geio DiskRadar</span>
-        <span class="font-data-mono-sm text-data-mono-sm text-primary-fixed bg-surface-container-high px-space-xs py-0.5 rounded font-bold">v2.2.0</span>
+        <span id="header-version-pill" class="font-data-mono-sm text-data-mono-sm text-primary-fixed bg-surface-container-high px-space-xs py-0.5 rounded font-bold">v2.3.0</span>
       </div>
       <!-- Dropdown de Unidades -->
       <div class="flex items-center gap-space-xs bg-surface-container-lowest px-space-sm py-1 rounded w-80 max-w-full border border-outline-variant/30">
@@ -1007,8 +1011,77 @@ tailwind.config = {
       <div class="text-center py-8 text-on-surface-variant">Carregando telemetria de ambiente...</div>
     </div>
     <div class="p-space-md bg-surface-container-high flex items-center justify-between shrink-0">
-      <span class="text-body-sm font-body-sm text-on-surface-variant">Geio DiskRadar v2.2.0 • Verificação passiva 100% segura</span>
+      <span class="text-body-sm font-body-sm text-on-surface-variant">Geio DiskRadar v2.3.0 • Verificação passiva 100% segura</span>
       <button onclick="closeDiagnosticsModal()" class="h-8 px-space-md rounded bg-surface-container hover:bg-surface-variant text-on-surface font-body-sm font-semibold" type="button">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================================
+     MODAL DE INSTALAÇÃO CANÔNICA & AUTO-UPDATE (SEM DUPLICATAS NO WINDOWS)
+     ============================================================================ -->
+<div id="modal-updater" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-surface-container-lowest/85 backdrop-blur-md p-space-md">
+  <div class="w-full max-w-3xl bg-surface-container-low rounded-lg shadow-2xl flex flex-col overflow-hidden border border-primary/40">
+    <div class="h-11 px-space-md bg-surface-container-high flex items-center justify-between shrink-0">
+      <div class="flex items-center gap-space-sm min-w-0">
+        <span class="material-symbols-outlined text-secondary text-[18px]">system_update_alt</span>
+        <span class="font-headline-sm text-headline-sm font-bold text-primary truncate">
+          GERENCIADOR DE INSTALAÇÃO CANÔNICA &amp; ATUALIZAÇÃO DE VERSÃO (SEM DUPLICATAS)
+        </span>
+      </div>
+      <button onclick="closeUpdaterModal()" class="h-7 w-7 flex items-center justify-center rounded bg-error-container/40 hover:bg-error-container text-error hover:text-on-error" type="button">
+        <span class="material-symbols-outlined text-[16px]">close</span>
+      </button>
+    </div>
+
+    <div class="p-space-md space-y-space-md overflow-y-auto">
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-space-sm">
+        <div class="bg-surface-container p-space-sm rounded border-l-2 border-primary">
+          <span class="text-on-surface-variant font-label-caps text-label-caps uppercase block">Versão em Execução</span>
+          <span id="upd-running-ver" class="font-headline-lg text-headline-lg text-primary font-bold font-data-mono-lg">v2.3.0</span>
+        </div>
+        <div class="bg-surface-container p-space-sm rounded border-l-2 border-secondary">
+          <span class="text-on-surface-variant font-label-caps text-label-caps uppercase block">Versão Instalada no Sistema</span>
+          <span id="upd-installed-ver" class="font-headline-lg text-headline-lg text-secondary font-bold font-data-mono-lg">Verificando...</span>
+        </div>
+        <div class="bg-surface-container p-space-sm rounded border-l-2 border-primary-fixed">
+          <span class="text-on-surface-variant font-label-caps text-label-caps uppercase block">Última Versão (GitHub OTA)</span>
+          <span id="upd-remote-ver" class="font-headline-lg text-headline-lg text-on-surface font-bold font-data-mono-lg">Clique em Verificar</span>
+        </div>
+      </div>
+
+      <div class="bg-surface-container-lowest p-space-sm rounded border border-outline-variant/30 space-y-1 font-data-mono-sm text-data-mono-sm">
+        <div class="flex items-center justify-between">
+          <span class="text-on-surface-variant">Diretório Único Oficial (Canônico):</span>
+          <span id="upd-canonical-badge" class="px-1.5 py-0.5 rounded bg-surface-container-high text-primary font-label-badge text-label-badge font-bold">VERIFICANDO</span>
+        </div>
+        <code id="upd-install-dir" class="text-primary block truncate select-all">Carregando...</code>
+        <div class="text-on-surface-variant pt-1">
+          Arquivos Rastreados no Manifesto (SHA-256): <strong id="upd-files-count" class="text-on-surface">0</strong>
+        </div>
+      </div>
+
+      <div id="upd-status-box" class="bg-surface-container p-space-sm rounded text-body-sm font-body-sm text-on-surface-variant border border-outline-variant/20">
+        O motor de instalação canônica garante que apenas <strong>uma única instância</strong> do Geio DiskRadar exista no Windows, atualizando os arquivos no mesmo diretório, limpando módulos obsoletos de versões antigas e mantendo um único atalho na Área de Trabalho.
+      </div>
+    </div>
+
+    <div class="p-space-md bg-surface-container-high flex flex-wrap items-center justify-between gap-space-sm shrink-0">
+      <div class="flex items-center gap-space-xs">
+        <button onclick="runLocalCanonicalInstall()" class="h-8 px-space-md rounded bg-secondary-container hover:bg-secondary text-on-secondary-container hover:text-on-secondary font-body-sm font-bold flex items-center gap-1 shadow-sm" type="button">
+          <span class="material-symbols-outlined text-[16px]">install_desktop</span>
+          <span>Instalar / Atualizar no Sistema</span>
+        </button>
+        <button onclick="checkGitHubOtaUpdate()" class="h-8 px-space-md rounded bg-surface-container hover:bg-surface-bright text-primary font-body-sm font-semibold flex items-center gap-1" type="button">
+          <span class="material-symbols-outlined text-[16px]">cloud_sync</span>
+          <span>Verificar GitHub</span>
+        </button>
+        <button id="btn-apply-ota" onclick="applyGitHubOtaUpdate()" class="h-8 px-space-md rounded bg-primary-container/20 hover:bg-primary-container text-primary-fixed hover:text-on-primary font-body-sm font-bold flex items-center gap-1 border border-primary/40" type="button">
+          <span class="material-symbols-outlined text-[16px]">cloud_download</span>
+          <span>Atualizar via GitHub (OTA)</span>
+        </button>
+      </div>
+      <button onclick="closeUpdaterModal()" class="h-8 px-space-md rounded bg-surface-container hover:bg-surface-variant text-on-surface font-body-sm font-semibold" type="button">Fechar</button>
     </div>
   </div>
 </div>
@@ -2639,12 +2712,97 @@ async function recoverDeletedFile(entryId) {
 document.addEventListener('keydown', (ev) => {
   if (ev.key === 'Escape') {
     closeDiagnosticsModal();
+    closeUpdaterModal();
     closeEvidenceModal();
     closeSmartModal();
     closeExportModal();
     closeHexModal();
   }
 });
+
+/* ============================================================================
+   MODAL DE INSTALAÇÃO CANÔNICA & AUTO-UPDATE (SEM DUPLICATAS)
+   ============================================================================ */
+async function openUpdaterModal() {
+  document.getElementById('modal-updater').classList.remove('hidden');
+  await loadUpdaterStatus();
+}
+
+function closeUpdaterModal() {
+  document.getElementById('modal-updater').classList.add('hidden');
+}
+
+async function loadUpdaterStatus() {
+  try {
+    const res = await fetch('/api/version_status', { cache: 'no-store' });
+    const data = await res.json();
+    if (!data.ok) return;
+    document.getElementById('upd-running-ver').innerText = 'v' + (data.running_version || '2.3.0').replace(/^v/i, '');
+    document.getElementById('upd-installed-ver').innerText = data.is_installed
+      ? 'v' + data.installed_version
+      : 'Não instalado';
+    document.getElementById('upd-install-dir').innerText = data.install_dir || '';
+    document.getElementById('upd-files-count').innerText = data.manifest_files_count || 0;
+    const badge = document.getElementById('upd-canonical-badge');
+    if (data.is_running_from_canonical) {
+      badge.innerText = 'RODANDO DA INSTALAÇÃO OFICIAL';
+      badge.className = 'px-1.5 py-0.5 rounded bg-secondary-container text-on-secondary-container font-label-badge text-label-badge font-bold';
+    } else if (data.is_installed) {
+      badge.innerText = 'INSTALADO NO SISTEMA';
+      badge.className = 'px-1.5 py-0.5 rounded bg-surface-container-high text-primary font-label-badge text-label-badge font-bold';
+    } else {
+      badge.innerText = 'MODO PORTÁTIL (NÃO INSTALADO)';
+      badge.className = 'px-1.5 py-0.5 rounded bg-surface-container-high text-on-surface-variant font-label-badge text-label-badge font-bold';
+    }
+  } catch (err) {
+    showToast('Erro ao consultar status de instalação: ' + err.message);
+  }
+}
+
+async function runLocalCanonicalInstall() {
+  const box = document.getElementById('upd-status-box');
+  box.innerText = 'Sincronizando e instalando no diretório único oficial do sistema...';
+  showToast('Instalando / Atualizando no diretório canônico do sistema...');
+  const res = await apiPost('/api/system/install_local', { force: false });
+  if (res.ok) {
+    box.innerHTML = `<span class="text-secondary font-bold">✅ ${escapeHtml(res.action_label)} concluída com sucesso!</span><br/>Diretório único: <code>${escapeHtml(res.install_dir)}</code> (${res.files_installed} arquivos verificados com SHA-256, ${res.removed_obsolete_count} obsoletos removidos).`;
+    showToast(res.action_label + ' concluída!');
+    await loadUpdaterStatus();
+  } else {
+    box.innerHTML = `<span class="text-error font-bold">⚠️ ${escapeHtml(res.error || 'Falha na instalação')}</span>`;
+    showToast(res.error || 'Operação bloqueada');
+  }
+}
+
+async function checkGitHubOtaUpdate() {
+  const box = document.getElementById('upd-status-box');
+  box.innerText = 'Consultando repositório oficial no GitHub...';
+  const res = await apiPost('/api/system/check_update');
+  if (res.ok) {
+    document.getElementById('upd-remote-ver').innerText = 'v' + res.remote_version;
+    box.innerHTML = `<span class="${res.update_available ? 'text-primary font-bold' : 'text-secondary font-bold'}">${escapeHtml(res.message)}</span>`;
+    showToast(res.message);
+  } else {
+    document.getElementById('upd-remote-ver').innerText = 'Offline';
+    box.innerText = res.message || 'Sem conexão com o GitHub.';
+    showToast('Bancada offline ou sem acesso ao GitHub.');
+  }
+}
+
+async function applyGitHubOtaUpdate() {
+  const box = document.getElementById('upd-status-box');
+  box.innerText = 'Baixando pacote atualizado do GitHub e aplicando Upgrade In-Place...';
+  showToast('Baixando atualização OTA do GitHub...');
+  const res = await apiPost('/api/system/ota_update');
+  if (res.ok) {
+    box.innerHTML = `<span class="text-secondary font-bold">✅ Atualização OTA concluída (${escapeHtml(res.action_label)})!</span><br/>Reinicie o aplicativo para carregar os novos módulos em memória.`;
+    showToast('Atualização OTA aplicada com sucesso!');
+    await loadUpdaterStatus();
+  } else {
+    box.innerHTML = `<span class="text-error font-bold">⚠️ ${escapeHtml(res.error || 'Falha no OTA Update')}</span>`;
+    showToast(res.error || 'Erro ao atualizar via GitHub');
+  }
+}
 
 // Loop de sincronização e heartbeat
 setInterval(fetchState, 600);

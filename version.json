@@ -1,0 +1,11 @@
+{
+  "app_id": "8B49E7C2-1C2A-4D4F-9E62-F9F71B39D4E2",
+  "app_name": "Geio DiskRadar",
+  "version": "2.3.0",
+  "channel": "stable",
+  "release_date": "2026-11-07",
+  "publisher": "Geio Forensics & Security",
+  "repo_url": "https://github.com/6310/diskradar",
+  "raw_version_url": "https://raw.githubusercontent.com/6310/diskradar/main/version.json",
+  "zip_download_url": "https://github.com/6310/diskradar/archive/refs/heads/main.zip"
+}

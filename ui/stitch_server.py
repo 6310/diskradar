@@ -30,12 +30,13 @@ from core.disk_info import (
 from core.explorer_bridge import open_in_explorer
 from core.exporter import build_default_report_filename, export_html_report
 from core.hex_inspector import inspect_file_sector
+from core.installer import get_app_version
 from core.rules import format_size
 from core.scanner import AsyncDiskScanner, ScanResult
 from ui.stitch_template import STITCH_SPA_HTML
 
 
-APP_VERSION = "v2.2.0"
+APP_VERSION = get_app_version()
 
 
 def _format_hms(seconds: float) -> str:
@@ -973,6 +974,11 @@ class _StitchHTTPHandler(BaseHTTPRequestHandler):
             self._send_json(run_system_diagnostics(self.controller.selected_path))
             return
 
+        if parsed.path == "/api/version_status":
+            from core.installer import get_installed_info
+            self._send_json({"ok": True, **get_installed_info()})
+            return
+
         self._send_json({"ok": False, "error": "Not found"}, status=404)
 
     def do_POST(self) -> None:
@@ -1141,6 +1147,36 @@ class _StitchHTTPHandler(BaseHTTPRequestHandler):
         if parsed.path == "/api/app/shutdown":
             self.controller.shutdown_requested = True
             self._send_json({"ok": True})
+            return
+
+        if parsed.path == "/api/system/install_local":
+            from core.installer import install_or_upgrade_local
+            force = bool(body.get("force", False))
+            res = install_or_upgrade_local(force_downgrade=force, create_shortcuts=True)
+            if res.get("ok"):
+                self.controller._append_log(
+                    "[INSTALLER]",
+                    "ok",
+                    f"📌 {res['action_label']} concluída em {res['install_dir']} ({res['files_installed']} arquivos)."
+                )
+            self._send_json(res)
+            return
+
+        if parsed.path == "/api/system/check_update":
+            from core.installer import check_github_update
+            self._send_json(check_github_update())
+            return
+
+        if parsed.path == "/api/system/ota_update":
+            from core.installer import apply_github_ota_update
+            res = apply_github_ota_update()
+            if res.get("ok"):
+                self.controller._append_log(
+                    "[OTA-UPDATE]",
+                    "crit",
+                    f"☁️ ATUALIZAÇÃO OTA CONCLUÍDA: {res['action_label']} em {res['install_dir']}"
+                )
+            self._send_json(res)
             return
 
         self._send_json({"ok": False, "error": "Unknown endpoint"}, status=404)
