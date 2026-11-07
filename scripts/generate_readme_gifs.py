@@ -362,7 +362,10 @@ def main():
                 "--window-size=1440,900",
                 view_url,
             ]
-            subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=12)
+            try:
+                subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=25)
+            except subprocess.TimeoutExpired:
+                print(f"  [AVISO] Timeout ao capturar {name}")
             if os.path.isfile(dest_png):
                 png_paths[name] = dest_png
                 print(f"  - Captura salva: {name} ({os.path.getsize(dest_png) / 1024:.1f} KB)")
@@ -390,14 +393,14 @@ def main():
     overview_frames = [decoded_frames[n] for n in overview_names if n in decoded_frames]
     if overview_frames:
         gif1_path = os.path.join(docs_img_dir, "diskradar-overview.gif")
-        create_animated_gif(overview_frames, [80, 80, 80, 80], gif1_path)
+        create_animated_gif(overview_frames, [100, 100, 100, 100], gif1_path)
 
     # GIF 2: Apagados Rápidos & Inspetor Hexadecimal
     forensic_names = ["05_apagados_rapidos.png", "06_hex_inspector.png"]
     forensic_frames = [decoded_frames[n] for n in forensic_names if n in decoded_frames]
     if forensic_frames:
         gif2_path = os.path.join(docs_img_dir, "diskradar-quick-deleted.gif")
-        create_animated_gif(forensic_frames, [85, 85], gif2_path)
+        create_animated_gif(forensic_frames, [100, 100], gif2_path)
 
     shutil.rmtree(temp_dir, ignore_errors=True)
     shutil.rmtree(temp_root, ignore_errors=True)
