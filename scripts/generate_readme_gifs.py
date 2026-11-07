@@ -216,13 +216,24 @@ def decode_and_downscale_png(filepath: str, scale: int = 2):
     out_h = height // scale
     indexed = bytearray(out_w * out_h)
     idx = 0
+    stride2 = stride * scale
     for y in range(out_h):
-        orig_y = y * scale
-        row_start = orig_y * stride
+        row0 = y * stride2
+        row1 = row0 + stride if scale == 2 and (y * scale + 1) < height else row0
         for x in range(out_w):
-            orig_x = x * scale
-            p_offset = row_start + orig_x * bpp
-            r, g, b = recon[p_offset], recon[p_offset + 1], recon[p_offset + 2]
+            x2 = x * scale * bpp
+            if scale == 2 and (x * 2 + 1) * bpp < stride:
+                x2_next = x2 + bpp
+                p0 = row0 + x2
+                p1 = row0 + x2_next
+                p2 = row1 + x2
+                p3 = row1 + x2_next
+                r = (recon[p0] + recon[p1] + recon[p2] + recon[p3]) >> 2
+                g = (recon[p0 + 1] + recon[p1 + 1] + recon[p2 + 1] + recon[p3 + 1]) >> 2
+                b = (recon[p0 + 2] + recon[p1 + 2] + recon[p2 + 2] + recon[p3 + 2]) >> 2
+            else:
+                p_offset = row0 + x2
+                r, g, b = recon[p_offset], recon[p_offset + 1], recon[p_offset + 2]
             indexed[idx] = rgb_to_palette_idx(r, g, b)
             idx += 1
 
@@ -379,14 +390,14 @@ def main():
     overview_frames = [decoded_frames[n] for n in overview_names if n in decoded_frames]
     if overview_frames:
         gif1_path = os.path.join(docs_img_dir, "diskradar-overview.gif")
-        create_animated_gif(overview_frames, [130, 130, 130, 130], gif1_path)
+        create_animated_gif(overview_frames, [80, 80, 80, 80], gif1_path)
 
     # GIF 2: Apagados Rápidos & Inspetor Hexadecimal
     forensic_names = ["05_apagados_rapidos.png", "06_hex_inspector.png"]
     forensic_frames = [decoded_frames[n] for n in forensic_names if n in decoded_frames]
     if forensic_frames:
         gif2_path = os.path.join(docs_img_dir, "diskradar-quick-deleted.gif")
-        create_animated_gif(forensic_frames, [150, 150], gif2_path)
+        create_animated_gif(forensic_frames, [85, 85], gif2_path)
 
     shutil.rmtree(temp_dir, ignore_errors=True)
     shutil.rmtree(temp_root, ignore_errors=True)

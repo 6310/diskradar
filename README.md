@@ -2,7 +2,7 @@
 
 Software desktop para triagem rapida, forense e **100% Read-Only (somente leitura)** de discos rigidos (HDs) e unidades de estado solido (SSDs) conectados via Dock USB, SATA ou adaptadores de bancada. Desenvolvido para peritos, tecnicos de hardware, recuperadores de ativos e analistas de seguranca da informacao que precisam avaliar lotes de discos descartados ou sucata sem alterar metadados na unidade inspecionada.
 
-![Demonstracao do Geio DiskRadar](docs/img/diskradar-overview.gif)
+![Demonstracao do Geio DiskRadar](docs/img/diskradar-overview.gif?raw=true&v=2)
 
 ---
 
@@ -29,7 +29,7 @@ Interface unificada composta por 10 telas e modais analiticos integrados ao moto
 - **Inspetor Hexadecimal Read-Only (`modal-hex`):** Leitura de blocos de 512 bytes, calculo de Entropia de Shannon (0.00 a 8.00 bits/byte), identificador de Magic Numbers (Berkeley DB, SQLite, ZIP, PDF, KDBX, DWG, PST) e visualizador de tipos numericos em tempo real.
 - **Diagnostico S.M.A.R.T. Detalhado (`modal-smart`):** Tabela de saude eletromecanica, atributos criticos e telemetria bruta em hexadecimal e decimal.
 
-![Recuperacao de Arquivos Apagados e Inspecao Hexadecimal](docs/img/diskradar-quick-deleted.gif)
+![Recuperacao de Arquivos Apagados e Inspecao Hexadecimal](docs/img/diskradar-quick-deleted.gif?raw=true&v=2)
 
 ### 2. Motor de Varredura Assincrono Anti-Travamento
 - Execucao multithread isolada com fila thread-safe (`queue.Queue`) e snapshots de telemetria.

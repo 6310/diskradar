@@ -2869,10 +2869,18 @@ async function applyInitialStateIfPresent() {
     if (!badge) {
       badge = document.createElement('div');
       badge.id = 'diskradar-hud-overlay-badge';
-      badge.className = 'fixed bottom-6 left-1/2 -translate-x-1/2 z-[99999] px-6 py-2.5 rounded-full bg-[#0c0e14]/95 border-2 border-[#00dbe9] shadow-[0_0_30px_rgba(0,219,233,0.55)] backdrop-blur-md text-[#dbfcff] font-mono text-[13px] font-bold tracking-wider flex items-center gap-3 select-none pointer-events-none uppercase whitespace-nowrap';
+      badge.style.cssText = 'position:fixed;bottom:36px;left:50%;transform:translateX(-50%);z-index:999999;background:#001a1d;border:3px solid #00dbe9;box-shadow:0 0 35px rgba(0,219,233,0.85),0 12px 32px rgba(0,0,0,0.95);border-radius:12px;padding:12px 28px;display:flex;align-items:center;gap:16px;pointer-events:none;user-select:none;white-space:nowrap;';
       document.body.appendChild(badge);
     }
-    badge.innerHTML = `<span class="w-2.5 h-2.5 rounded-full bg-[#4edea3] shadow-[0_0_12px_#4edea3] shrink-0"></span><span class="truncate">${escapeHtml(overlayTitle)}</span>`;
+    badge.innerHTML = `
+      <span style="display:flex;align-items:center;gap:8px;background:#004f54;border:1.5px solid #00dbe9;color:#7df4ff;font-family:'JetBrains Mono',Consolas,monospace;font-size:15px;font-weight:900;padding:4px 12px;border-radius:6px;letter-spacing:0.12em;text-transform:uppercase;">
+        <span style="width:10px;height:10px;border-radius:50%;background:#4edea3;box-shadow:0 0 10px #4edea3;display:inline-block;"></span>
+        MÓDULO
+      </span>
+      <span style="color:#ffffff;font-family:'JetBrains Mono',Consolas,monospace;font-size:22px;font-weight:900;letter-spacing:0.06em;text-transform:uppercase;text-shadow:0 2px 10px rgba(0,0,0,0.95);">
+        ${escapeHtml(overlayTitle)}
+      </span>
+    `;
   }
 }
 
