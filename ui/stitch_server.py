@@ -327,6 +327,7 @@ class StitchBackendController:
 
         self.custom_report_path: Optional[str] = None
         self.last_heartbeat: float = time.monotonic()
+        self.has_connected: bool = False
         self.shutdown_requested: bool = False
 
         # Carrega informações de hardware S.M.A.R.T. em background para inicialização instantânea
@@ -551,8 +552,22 @@ class StitchBackendController:
                 title="Geio DiskRadar — Escolher Pasta ou Unidade para Triagem Read-Only",
             )
             root.destroy()
-        except Exception as exc:
-            return {"ok": False, "error": f"Não foi possível abrir seletor nativo: {exc}"}
+        except Exception:
+            pass
+
+        if not chosen and sys.platform == "win32":
+            try:
+                ps_script = (
+                    "Add-Type -AssemblyName System.Windows.Forms; "
+                    "$f = New-Object System.Windows.Forms.FolderBrowserDialog; "
+                    "$f.Description = 'Geio DiskRadar — Selecionar Pasta Read-Only'; "
+                    "if ($f.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $f.SelectedPath }"
+                )
+                res = subprocess.run(["powershell", "-NoProfile", "-Command", ps_script], capture_output=True, text=True, timeout=120)
+                if res.returncode == 0 and res.stdout.strip():
+                    chosen = res.stdout.strip()
+            except Exception:
+                pass
 
         if chosen:
             return self.select_target(chosen)
@@ -894,9 +909,10 @@ class _StitchHTTPHandler(BaseHTTPRequestHandler):
             return {}
 
     def do_GET(self) -> None:
+        self.controller.has_connected = True
+        self.controller.last_heartbeat = time.monotonic()
         parsed = urlparse(self.path)
         if parsed.path in ("/", "/index.html"):
-            self.controller.last_heartbeat = time.monotonic()
             html_bytes = STITCH_SPA_HTML.encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
@@ -1087,12 +1103,22 @@ def launch_stitch_desktop_app() -> bool:
             return False
 
     # Aguarda enquanto a janela estiver aberta ou recebendo heartbeats
+    start_time = time.monotonic()
     try:
         while not controller.shutdown_requested:
+            now = time.monotonic()
+            if controller.has_connected:
+                # Se a interface estava aberta e não enviou nenhum heartbeat nos últimos 6s, janela foi fechada
+                if now - controller.last_heartbeat > 6.0:
+                    break
+            else:
+                # Se após 30s da inicialização não houve conexão, encerra por timeout
+                if now - start_time > 30.0:
+                    break
+
             if proc is not None and proc.poll() is not None:
                 # Se o processo retornou, verifica se a janela ainda manda heartbeat (caso tenha delegado)
-                time.sleep(1.5)
-                if time.monotonic() - controller.last_heartbeat > 4.0:
+                if controller.has_connected and (now - controller.last_heartbeat > 3.0):
                     break
             time.sleep(0.4)
     except KeyboardInterrupt:

@@ -116,13 +116,15 @@ tailwind.config = {
 };
 </script>
 <style>
-  /* Fallback offline e ajustes de precisão Cyber-Forensic */
+  /* Regras de precisão Cyber-Forensic e resiliência offline */
+  .hidden { display: none !important; }
+  
   html, body {
     margin: 0;
     padding: 0;
     background-color: #0c0e14;
     color: #e2e2eb;
-    font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+    font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
     overscroll-behavior: none;
   }
   ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -132,6 +134,18 @@ tailwind.config = {
   .mono-font { font-family: 'JetBrains Mono', 'Consolas', monospace; }
   .tab-panel { display: none; }
   .tab-panel.active { display: flex; flex-direction: column; }
+
+  /* Fallback offline: garante integridade visual mesmo em bancada sem internet */
+  .bg-surface-container-lowest { background-color: #0c0e14; }
+  .bg-surface-container-low { background-color: #191b22; }
+  .bg-surface-container { background-color: #1e1f26; }
+  .bg-surface-container-high { background-color: #282a30; }
+  .bg-surface-container-highest { background-color: #33343b; }
+  .text-primary { color: #00f0ff; }
+  .text-secondary { color: #4edea3; }
+  .text-error { color: #ffb4ab; }
+  .text-on-surface { color: #e2e2eb; }
+  .text-on-surface-variant { color: #849495; }
 </style>
 </head>
 <body class="bg-surface-container-lowest font-body-md text-on-surface select-none antialiased">
@@ -1089,7 +1103,7 @@ tailwind.config = {
     <div class="bg-surface-container px-space-xl py-space-sm flex flex-wrap items-center justify-between gap-space-md shrink-0">
       <div class="flex items-center gap-space-sm flex-wrap">
         <span class="font-label-caps text-label-caps text-on-surface-variant uppercase">Offset Bytes:</span>
-        <input id="hex-offset-input" class="bg-surface-container-lowest font-data-mono-md text-data-mono-md text-on-surface px-space-sm py-1 rounded w-28 outline-none" type="number" min="0" step="512" value="0"/>
+        <input id="hex-offset-input" onchange="reloadHexCurrent()" onkeydown="if(event.key==='Enter')reloadHexCurrent()" class="bg-surface-container-lowest font-data-mono-md text-data-mono-md text-on-surface px-space-sm py-1 rounded w-28 outline-none border border-outline-variant/30 focus:border-primary" type="number" min="0" step="512" value="0"/>
         <button onclick="stepHexOffset(-512)" class="px-space-md py-1 bg-surface-container-high hover:bg-surface-variant text-on-surface rounded font-data-mono-sm text-data-mono-sm flex items-center gap-1" type="button">
           <span class="material-symbols-outlined text-[14px]">arrow_back</span>
           <span>Anterior (-512B)</span>
@@ -1181,6 +1195,7 @@ let SMART_HEX_MODE = true;
 let CURRENT_HEX_PATH = '';
 let CURRENT_HEX_DUMP = '';
 let WAS_SCANNING_PREV = false;
+let LAST_RENDER_SIGNATURE = '';
 
 function escapeHtml(str) {
   return String(str ?? '')
@@ -1265,6 +1280,13 @@ async function fetchState() {
     }
     WAS_SCANNING_PREV = isNowScanning;
     APP_STATE = data;
+
+    // Se estiver em modo estático (fora de varredura), evita re-renderizar desnecessariamente o DOM
+    const stateSig = `${data.selected_path}|${isNowScanning}|${data.scan?.scanned_files}|${data.results?.hot_folders_total}|${data.results?.critical_items_total}|${data.results?.errors_total}|${data.badge?.serial_number}`;
+    if (!isNowScanning && stateSig === LAST_RENDER_SIGNATURE) {
+      return;
+    }
+    LAST_RENDER_SIGNATURE = stateSig;
     renderAll();
   } catch (e) {}
 }
