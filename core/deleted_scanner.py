@@ -190,9 +190,13 @@ def scan_recycle_bin_deleted(target_path: str) -> List[DeletedFileEntry]:
     else:
         drive_root = clean_target
 
+    # Se clean_target for uma unidade completa (ex: "D:\" ou "D:"), inspeciona a raiz da unidade.
+    # Se for um diretório específico (ex: pasta de testes ou subpasta), inspeciona apenas sob o diretório informado.
+    is_drive_root = (clean_target == drive_root) or (clean_target.rstrip("\\/") == (os.path.splitdrive(clean_target)[0] or "").rstrip("\\/"))
+
     candidate_dirs: List[str] = []
     roots_to_check = [clean_target]
-    if drive_root and drive_root != clean_target:
+    if is_drive_root and drive_root and drive_root not in roots_to_check:
         roots_to_check.append(drive_root)
 
     for r_root in roots_to_check:
