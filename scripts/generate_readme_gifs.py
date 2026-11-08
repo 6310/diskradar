@@ -343,12 +343,12 @@ def main():
             (
                 "05_apagados_rapidos.png",
                 f"{url}?tab=arquivos-apagados&title="
-                + urllib.parse.quote("01. APAGADOS RÁPIDOS // RECONSTRUÇÃO $MFT & LIXEIRA (ZERO DEEP SCAN)"),
+                + urllib.parse.quote("01. APAGADOS RÁPIDOS // RECONSTRUÇÃO $MFT & LIXEIRA"),
             ),
             (
                 "06_hex_inspector.png",
                 f"{url}?modal=modal-hex&title="
-                + urllib.parse.quote("02. INSPETOR HEX // ANÁLISE DE ENTROPIA & SIGNATURES EM TEMPO REAL"),
+                + urllib.parse.quote("02. INSPETOR HEX // ANÁLISE DE ENTROPIA & SIGNATURES"),
             ),
         ]
 
@@ -396,7 +396,7 @@ def main():
     if overview_frames:
         gif1_legacy = os.path.join(docs_img_dir, "diskradar-overview.gif")
         gif1_showcase = os.path.join(docs_img_dir, "diskradar-showcase-overview.gif")
-        create_animated_gif(overview_frames, [100, 100, 100, 100], gif1_legacy)
+        create_animated_gif(overview_frames, [150, 150, 150, 150], gif1_legacy)
         shutil.copyfile(gif1_legacy, gif1_showcase)
         print(f"  [OK] Copiado com cache-bust: {gif1_showcase}")
 
@@ -406,7 +406,7 @@ def main():
     if forensic_frames:
         gif2_legacy = os.path.join(docs_img_dir, "diskradar-quick-deleted.gif")
         gif2_showcase = os.path.join(docs_img_dir, "diskradar-showcase-deleted.gif")
-        create_animated_gif(forensic_frames, [100, 100], gif2_legacy)
+        create_animated_gif(forensic_frames, [150, 150], gif2_legacy)
         shutil.copyfile(gif2_legacy, gif2_showcase)
         print(f"  [OK] Copiado com cache-bust: {gif2_showcase}")
 
