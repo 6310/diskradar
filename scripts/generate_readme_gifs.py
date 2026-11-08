@@ -5,6 +5,7 @@ Utiliza Firefox Headless para capturar as telas da interface Stitch em tempo rea
 sobre o disco virtual forense e monta os GIFs animados em puro Python (sem Pillow/ImageMagick).
 """
 
+import gc
 import json
 import os
 import shutil
@@ -379,6 +380,7 @@ def main():
     for name, path in png_paths.items():
         w, h, idx_px = decode_and_downscale_png(path, scale=2)
         decoded_frames[name] = (w, h, idx_px)
+        gc.collect()
 
     print("\n[3/3] Compilando GIFs animados em docs/img/...")
     docs_img_dir = os.path.join(BASE_DIR, "docs", "img")
@@ -392,15 +394,21 @@ def main():
     ]
     overview_frames = [decoded_frames[n] for n in overview_names if n in decoded_frames]
     if overview_frames:
-        gif1_path = os.path.join(docs_img_dir, "diskradar-overview.gif")
-        create_animated_gif(overview_frames, [100, 100, 100, 100], gif1_path)
+        gif1_legacy = os.path.join(docs_img_dir, "diskradar-overview.gif")
+        gif1_showcase = os.path.join(docs_img_dir, "diskradar-showcase-overview.gif")
+        create_animated_gif(overview_frames, [100, 100, 100, 100], gif1_legacy)
+        shutil.copyfile(gif1_legacy, gif1_showcase)
+        print(f"  [OK] Copiado com cache-bust: {gif1_showcase}")
 
     # GIF 2: Apagados Rápidos & Inspetor Hexadecimal
     forensic_names = ["05_apagados_rapidos.png", "06_hex_inspector.png"]
     forensic_frames = [decoded_frames[n] for n in forensic_names if n in decoded_frames]
     if forensic_frames:
-        gif2_path = os.path.join(docs_img_dir, "diskradar-quick-deleted.gif")
-        create_animated_gif(forensic_frames, [100, 100], gif2_path)
+        gif2_legacy = os.path.join(docs_img_dir, "diskradar-quick-deleted.gif")
+        gif2_showcase = os.path.join(docs_img_dir, "diskradar-showcase-deleted.gif")
+        create_animated_gif(forensic_frames, [100, 100], gif2_legacy)
+        shutil.copyfile(gif2_legacy, gif2_showcase)
+        print(f"  [OK] Copiado com cache-bust: {gif2_showcase}")
 
     shutil.rmtree(temp_dir, ignore_errors=True)
     shutil.rmtree(temp_root, ignore_errors=True)

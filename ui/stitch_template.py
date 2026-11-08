@@ -2869,21 +2869,21 @@ async function applyInitialStateIfPresent() {
     if (!badge) {
       badge = document.createElement('div');
       badge.id = 'diskradar-hud-overlay-badge';
-      badge.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:999999;background:rgba(0,18,22,0.97);border:4px solid #00dbe9;box-shadow:0 0 60px rgba(0,219,233,0.95),0 24px 60px rgba(0,0,0,0.98);border-radius:20px;padding:18px 46px;display:flex;flex-direction:column;align-items:center;text-align:center;pointer-events:none;user-select:none;max-width:94vw;';
+      badge.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:999999;background:rgba(0,18,22,0.98);border:5px solid #00dbe9;box-shadow:0 0 70px rgba(0,219,233,1),0 25px 70px rgba(0,0,0,0.99);border-radius:22px;padding:22px 56px;display:flex;flex-direction:column;align-items:center;text-align:center;pointer-events:none;user-select:none;max-width:95vw;';
       document.body.appendChild(badge);
     }
     const parts = overlayTitle.split('//').map(s => s.trim());
     const mainTitle = parts[0] || overlayTitle;
     const subTitle = parts[1] || '';
     badge.innerHTML = `
-      <div style="display:flex;align-items:center;gap:16px;margin-bottom:8px;">
-        <span style="display:inline-flex;align-items:center;gap:10px;background:#004f54;border:2px solid #00dbe9;color:#7df4ff;font-family:'JetBrains Mono',Consolas,monospace;font-size:20px;font-weight:900;padding:5px 16px;border-radius:10px;letter-spacing:0.16em;text-transform:uppercase;">
-          <span style="width:14px;height:14px;border-radius:50%;background:#4edea3;box-shadow:0 0 14px #4edea3;display:inline-block;"></span>
+      <div style="display:flex;align-items:center;gap:18px;margin-bottom:10px;">
+        <span style="display:inline-flex;align-items:center;gap:10px;background:#004f54;border:2.5px solid #00dbe9;color:#7df4ff;font-family:'JetBrains Mono',Consolas,monospace;font-size:22px;font-weight:900;padding:6px 18px;border-radius:10px;letter-spacing:0.18em;text-transform:uppercase;">
+          <span style="width:14px;height:14px;border-radius:50%;background:#4edea3;box-shadow:0 0 16px #4edea3;display:inline-block;"></span>
           MÓDULO FORENSE
         </span>
-        ${subTitle ? `<span style="color:#7df4ff;font-family:'JetBrains Mono',Consolas,monospace;font-size:26px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;text-shadow:0 2px 10px rgba(0,0,0,0.9);">${escapeHtml(subTitle)}</span>` : ''}
+        ${subTitle ? `<span style="color:#7df4ff;font-family:'JetBrains Mono',Consolas,monospace;font-size:30px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;text-shadow:0 3px 12px rgba(0,0,0,0.95);">${escapeHtml(subTitle)}</span>` : ''}
       </div>
-      <div style="color:#ffffff;font-family:'JetBrains Mono',Consolas,monospace;font-size:70px;line-height:1.05;font-weight:900;letter-spacing:0.04em;text-transform:uppercase;text-shadow:0 4px 20px rgba(0,0,0,0.95), 0 0 35px rgba(0,219,233,0.6);">
+      <div style="color:#ffffff;font-family:'JetBrains Mono',Consolas,monospace;font-size:84px;line-height:1.05;font-weight:900;letter-spacing:0.04em;text-transform:uppercase;text-shadow:0 6px 25px rgba(0,0,0,0.99), 0 0 45px rgba(0,219,233,0.7);">
         ${escapeHtml(mainTitle)}
       </div>
     `;
